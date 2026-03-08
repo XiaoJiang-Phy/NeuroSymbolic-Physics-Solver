@@ -1,0 +1,10 @@
+sympy
+mpmath
+numpy
+matplotlib
+pybind11
+scipy
+pandas
+google-generativeai
+openai
+python-dotenv
