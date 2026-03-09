@@ -34,7 +34,9 @@ class NumericalOracle:
                 'pi': mp.pi, 'exp': mp.exp, 'log': mp.log,
                 'inf': mp.inf, 'oo': mp.inf,
                 'I': 1j, 'j': 1j,
-                'sp': mp, 'sympy': mp
+                'sp': mp, 'sympy': mp,
+                'Integral': mp.quad,
+                'Derivative': mp.diff
             }
             
             if 'parameters' in problem and problem['parameters']:
@@ -43,7 +45,7 @@ class NumericalOracle:
                     name, val = first_param.split('=')
                     ctx[name.strip()] = float(val.strip())
             
-            f = lambda x: eval(expr_str, {"__builtins__": None}, {**ctx, 't': x, 'x': x, 'z': x})
+            f = lambda x: eval(expr_str, {"__builtins__": {}}, {**ctx, 't': x, 'x': x, 'z': x})
             return f(point)
         except Exception as e:
             print(f"[Oracle] Error evaluating point: {e}")
@@ -92,7 +94,7 @@ class NumericalOracle:
                     name, val = first_param.split('=')
                     ctx[name.strip()] = float(val.strip())
             
-            f = lambda x: eval(expr_str, {"__builtins__": None}, {**ctx, 't': x, 'x': x, 'z': x})
+            f = lambda x: eval(expr_str, {"__builtins__": {}}, {**ctx, 't': x, 'x': x, 'z': x})
             
             bounds = problem['bounds']
             # Parse bounds if they are string like "[0, mp.inf]"
