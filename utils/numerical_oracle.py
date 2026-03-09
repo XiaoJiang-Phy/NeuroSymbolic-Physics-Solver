@@ -35,8 +35,16 @@ class NumericalOracle:
                 'inf': mp.inf, 'oo': mp.inf,
                 'I': 1j, 'j': 1j,
                 'sp': mp, 'sympy': mp,
-                'Integral': mp.quad,
-                'Derivative': mp.diff
+                'Integral': lambda expr, *args: expr,
+                'Derivative': lambda expr, *args: expr,
+                'Sum': lambda expr, *args: expr,
+                'Limit': lambda expr, *args: expr,
+                'Eq': lambda lhs, rhs: lhs - rhs,
+                'factorial': mp.fac,
+                'im': mp.im,
+                're': mp.re,
+                'tan': mp.tan,
+                'residue': lambda *args: 0.0
             }
             
             if 'parameters' in problem and problem['parameters']:
@@ -83,7 +91,17 @@ class NumericalOracle:
                 'pi': mp.pi, 'exp': mp.exp, 'log': mp.log,
                 'inf': mp.inf, 'oo': mp.inf,
                 'I': 1j, 'j': 1j,
-                'sp': mp, 'sympy': mp
+                'sp': mp, 'sympy': mp,
+                'Integral': lambda expr, *args: expr,
+                'Derivative': lambda expr, *args: expr,
+                'Sum': lambda expr, *args: expr,
+                'Limit': lambda expr, *args: expr,
+                'Eq': lambda lhs, rhs: lhs - rhs,
+                'factorial': mp.fac,
+                'im': mp.im,
+                're': mp.re,
+                'tan': mp.tan,
+                'residue': lambda *args: 0.0
             }
             
             # Extract parameter from problem['parameters']
