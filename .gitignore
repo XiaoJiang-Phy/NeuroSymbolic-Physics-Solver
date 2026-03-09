@@ -12,6 +12,9 @@ htmlcov/
 
 # Project-specific temporary files
 eval_step.py
+eval_step_branch_*.py
+thinking_process.txt
+tree_log.json
 orchestrator.out
 condaenv.*.requirements.txt
 

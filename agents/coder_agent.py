@@ -25,19 +25,23 @@ class CoderAgent:
             "- Strict Rule (Python Plotting): For all data visualization and residual plots, you must "
             "strictly set the matplotlib global font family to Arial (sans-serif) using "
             "plt.rcParams['font.sans-serif'] = ['Arial'].\n"
+            "- Parameter Consistency: You MUST use the FIRST parameter value provided in the problem definition's 'parameters' list for your final numerical output to ensure comparison with the oracle succeeds.\n"
+            "- Point Sampling & Early Exit: If an `oracle_point_val` at `t=0.999` (or `x=0.999`) is provided, you MUST insert a point sampling check before the full numerical integration. Evaluate your numerical python integrand at 0.999. If the deviation `abs(sampled - oracle_point_val) / abs(oracle_point_val)` is > 10% (0.1), you MUST explicitly throw an exception: `raise Exception('EarlyExitException: Point sampling deviation > 10%')` to stop execution.\n"
             "Format your output as a JSON object with keys: 'python_script', 'plot_script'. "
             "Internal Script Rule: The generated 'python_script' MUST print the final numerical "
             "result to stdout as its VERY LAST line of output. Avoid printing other text "
             "unless necessary, and ensure the last line is a pure number."
         )
 
-    def generate_implementation(self, symbolic_ir):
+    def generate_implementation(self, symbolic_ir, oracle_point_val=None):
         if not self.api_key:
             return {"error": "DeepSeek API Key not found."}
 
         print(f"[Coder] Generating Python implementation...")
         
         prompt = f"{self.system_prompt}\n\nTheorist's IR: {json.dumps(symbolic_ir)}"
+        if oracle_point_val is not None:
+            prompt += f"\n\nOracle value at integration variable = 0.999 is {oracle_point_val}. Please insert the point sampling early exit check."
         
         response_stream = self.client.chat.completions.create(
             model="deepseek-chat",
@@ -46,13 +50,18 @@ class CoderAgent:
         )
         
         full_content = ""
-        print("\n--- [Coder Output] ---")
-        for chunk in response_stream:
-            delta = chunk.choices[0].delta
-            if delta.content:
-                print(delta.content, end="", flush=True)
-                full_content += delta.content
-        print("\n")
+        reasoning_log = "thinking_process.txt"
+        print(f"\n--- [Coder Generating] (Redirected to {reasoning_log}) ---")
+        
+        with open(reasoning_log, "a", encoding='utf-8') as log_f:
+            log_f.write(f"\n\n--- Coder Implementation Start ---\n")
+            for chunk in response_stream:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    log_f.write(delta.content)
+                    log_f.flush()
+                    full_content += delta.content
+        print("[Coder] Implementation generated.\n")
         
         try:
             text = full_content

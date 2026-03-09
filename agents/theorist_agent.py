@@ -20,15 +20,18 @@ class TheoristAgent:
         self.system_prompt = (
             "You are a rigorous theoretical physicist performing an ATOMIC symbolic derivation step-by-step.\n"
             "CRITICAL RULES:\n"
-            "1. NO JUMPING: Even if you know the final answer (e.g., Bessel or Sine Integral), do NOT propose it yet. "
-            "Propose the first atomic transformation (e.g., substitute x = cos(t), use even symmetry, or partial fractions).\n"
-            "2. ATOMIC STEP: Focus exclusively on ONE transformation per iteration. Change the integrand structure exactly once.\n"
-            "3. SINGULARITY CHECK: Specifically address how your single step affects the point t = +/- 1.\n"
-            "4. OUTPUT FORMAT: A JSON object in a markdown code block with:\n"
+            "1. OPERATOR SET: You must choose from one of the following paths: [Parametric_Differentiation, Basis_Expansion, Contour_Integration, Symmetry_Reduction].\n"
+            "2. PHYSICS PRIORS:\n"
+            "   - Asymptotic Matching: In your derivation, you MUST compute and mention the asymptotic behavior at extreme limits (e.g. N->1, N->infinity). Discard branches that fail asymptotic limits.\n"
+            "   - Singularity First: Do NOT perform series expansion without resolving 0/0 singularities first.\n"
+            "   - Dimensional Consistency: Verify that physical weights and dimensions remain consistent in each step.\n"
+            "3. MULTI-PATH SAMPLING: You must propose exactly 3 DIFFERENT paths simultaneously.\n"
+            "4. OUTPUT FORMAT: Output a JSON ARRAY of exactly 3 objects in a markdown code block. Each object must have:\n"
+            "   - 'path_type': One of the allowed operators (e.g. 'Parametric_Differentiation').\n"
             "   - 'symbolic_derivation': Description of THIS SINGLE transformation.\n"
             "   - 'analytical_expression': The NEW integral form after this single transformation.\n"
             "   - 'sympy_code': Pure SymPy to represent the NEW integrand.\n"
-            "   - 'singularity_handling': How the step maintains convergence at boundaries.\n"
+            "   - 'success_probability': Your predicted confidence in this path (0.0 to 1.0).\n"
         )
 
     def solve(self, problem_definition, context=None):
@@ -42,7 +45,7 @@ class TheoristAgent:
             f"{self.system_prompt}\n"
             "INSTRUCTION: Use your internal reasoning to explore the mathematical space. "
             "Once you have a sound strategy for the NEXT step, stop your internal derivation and "
-            "output the JSON plan. Do NOT output a final solution if verification is needed."
+            "output the JSON ARRAY of exactly 3 different paths. Do NOT output a final solution if verification is needed."
         )
 
         messages = [
@@ -59,21 +62,26 @@ class TheoristAgent:
         full_content = ""
         reasoning_content = ""
         
-        print("\n--- [Theorist Thinking Room] ---")
-        for chunk in response_stream:
-            delta = chunk.choices[0].delta
-            
-            # Print reasoning if available
-            if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                print(delta.reasoning_content, end="", flush=True)
-                reasoning_content += delta.reasoning_content
-            
-            # Print final instructions
-            if delta.content:
-                if not full_content:
-                    print("\n\n--- [Theorist Final Strategy JSON] ---")
-                print(delta.content, end="", flush=True)
-                full_content += delta.content
+        reasoning_log = "thinking_process.txt"
+        print(f"\n--- [Theorist Thinking] (Redirected to {reasoning_log}) ---")
+        
+        with open(reasoning_log, "a", encoding='utf-8') as log_f:
+            log_f.write(f"\n\n--- Iteration Strategy Start ---\n")
+            for chunk in response_stream:
+                delta = chunk.choices[0].delta
+                
+                # Write reasoning to file
+                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                    log_f.write(delta.reasoning_content)
+                    log_f.flush()
+                    reasoning_content += delta.reasoning_content
+                
+                # Print final instructions (JSON) to terminal for orchestration visibility
+                if delta.content:
+                    if not full_content:
+                        print("\n--- [Theorist Final Strategy JSON] ---")
+                    print(delta.content, end="", flush=True)
+                    full_content += delta.content
         print("\n")
         
         try:

@@ -1,5 +1,5 @@
-import sys
 import os
+import json
 from dotenv import load_dotenv
 
 # Load API keys from .env file
@@ -19,39 +19,97 @@ class ResearchOrchestrator:
         self.oracle = get_oracle()
         self.state = "INIT"
         self.max_iterations = 10
+        self.log_path = "tree_log.json"
+        self.tree_log = self._load_tree_log()
         self.history = []
 
+    def _load_tree_log(self):
+        if os.path.exists(self.log_path):
+            try:
+                with open(self.log_path, "r", encoding='utf-8') as f:
+                    print(f"[Orchestrator] Loading existing tree log from {self.log_path}")
+                    return json.load(f)
+            except Exception as e:
+                print(f"[Orchestrator] Error loading tree log: {e}")
+        return {}
+
+    def _save_tree_log(self):
+        try:
+            with open(self.log_path, "w", encoding='utf-8') as f:
+                json.dump(self.tree_log, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"[Orchestrator] Error saving tree log: {e}")
+
     def run(self):
+        # Initialize/Clear thinking process log
+        with open("thinking_process.txt", "w", encoding='utf-8') as f:
+            f.write(f"Research Log for: {self.problem['name']}\n")
+            f.write("="*50 + "\n")
+
         print(f"--- Initializing Research Loop for: {self.problem['name']} ---")
         
         for iteration in range(1, self.max_iterations + 1):
             print(f"\n[Iteration {iteration}/{self.max_iterations}] State: {self.state}")
             
-            # Step 2.1: Theorist proposes
-            symbolic_proposal = self.theorist.solve(self.problem)
-            print(f"[Theorist] Proposed Derivation: {symbolic_proposal['symbolic_derivation']}")
+            # Step 2.1: Theorist proposes multiple (3) paths
+            proposals = self.theorist.solve(self.problem, context=self.tree_log)
+            if not isinstance(proposals, list):
+                if isinstance(proposals, dict) and 'error' in proposals:
+                    print(f"Agent error: {proposals}")
+                    return
+                proposals = [proposals]  # Fallback to list
             
-            # Step 2.2: Coder implements
-            implementation = self.coder.generate_implementation(symbolic_proposal)
-            with open("eval_step.py", "w") as f:
-                f.write(implementation["python_script"])
+            branch_succeeded = False
+            for index, symbolic_proposal in enumerate(proposals):
+                print(f"\n>>>> [Branch {index+1}] Proposed Path: {symbolic_proposal.get('path_type', 'Unknown')} <<<<")
+                print(f"[Theorist] Derivation: {symbolic_proposal.get('symbolic_derivation', '')}")
+                print(f"[Theorist] Confidence: {symbolic_proposal.get('success_probability', '')}")
+                
+                # Retrieve ground truth at t=0.999 for early point sampling checks
+                # BUG FIX: Evaluate the NEW proposed integrand, not the original problem
+                temp_problem = self.problem.copy()
+                temp_problem['integrand'] = symbolic_proposal.get('sympy_code', self.problem['integrand'])
+                oracle_point_val = self.oracle.evaluate_integrand(temp_problem, 0.999)
+                
+                # Step 2.2: Coder implements
+                implementation = self.coder.generate_implementation(symbolic_proposal, oracle_point_val)
+                script_path = f"eval_step_branch_{index+1}.py"
+                with open(script_path, "w", encoding='utf-8') as f:
+                    f.write(implementation.get("python_script", ""))
+                
+                # Step 2.3: Verifier executes and checks
+                print(f"[Orchestrator] Evaluating Numerical Oracle for {self.problem['name']}...")
+                oracle_val = self.oracle.evaluate_ground_truth(self.problem)
+                print(f"[Orchestrator] Oracle value: {oracle_val}")
+                verification_result = self.verifier.verify(script_path, oracle_val)
+                
+                if verification_result.get("status") == "SUCCESS":
+                    print(f"[Success] Convergence achieved on Branch {index+1}! Residual: {verification_result.get('residual')}")
+                    self.finalize(symbolic_proposal)
+                    branch_succeeded = True
+                    return  # Break completely upon success
+                else:
+                    # Capture exact mathematical verdict from Verifier
+                    verdict = verification_result.get("verdict", verification_result.get("critique", "Failed Execution"))
+                    print(f"[Failure] Branch {index+1} Critique: {verdict}")
+                    
+                    # Log the negative feedback for future iterations (TreeLog)
+                    self.tree_log[f"Iteration_{iteration}_Branch_{index+1}"] = {
+                        "problem_name": self.problem['name'],
+                        "proposal": symbolic_proposal,
+                        "verdict": verdict
+                    }
+                    self._save_tree_log()
+                    
+                    # Context Pruning (Critical): Completely delete the intermediate code
+                    if os.path.exists(script_path):
+                        os.remove(script_path)
             
-            # Step 2.3: Verifier executes and checks
-            print(f"[Orchestrator] Evaluating Numerical Oracle for {self.problem['name']}...")
-            oracle_val = self.oracle.evaluate_ground_truth(self.problem)
-            print(f"[Orchestrator] Oracle value: {oracle_val}")
-            verification_result = self.verifier.verify("eval_step.py", oracle_val)
-            
-            if verification_result["status"] == "SUCCESS":
-                print(f"[Success] Convergence achieved! Residual: {verification_result['residual']}")
-                self.finalize(symbolic_proposal)
-                return
-            else:
-                print(f"[Failure] Critique: {verification_result['critique']}")
+            if not branch_succeeded:
                 self.state = "FEEDBACK"
                 continue
 
-        print("\n[Safety] Hard cap of 10 iterations reached. Halting.")
+        print("\n[Safety] Hard cap of 10 iterations reached. All paths failed. Halting.")
 
     def finalize(self, result):
         print("\n--- Compiling Final Summary ---")
@@ -61,12 +119,12 @@ class ResearchOrchestrator:
 
 if __name__ == "__main__":
     problem = {
-            "name": "Cosmic String Radiation Integral (1D Slice)", # 补上缺失的 name 字段
-            "integrand": "f(t, N) = (1 - (-1)**N * cos(N * pi * t)) / (1 - t**2)",
-            "bounds": "[-1, 1]",
-            "parameters": ["N (integer, evaluate for N=1, 2, 3, 5, 10)"],
-            "target": "Find a closed-form analytical solution or a highly efficient series representation in terms of N. Specifically address the 0/0 singularity at t = +/- 1.",
-            "hint": "Consider using differentiation under the integral sign with respect to a dummy parameter, or expanding the kernel using orthogonal polynomials."
+            "name": "Parametric Sinusoidal Decay Integral",
+            "integrand": "f(x, a) = sin(a*x) / (x * (x**2 + 1))",
+            "bounds": "[0, mp.inf]",
+            "parameters": ["a=1", "a=2", "a=5"],
+            "target": "Find the general closed-form solution as a function of parameter 'a' (a > 0).",
+            "hint": "Consider partial fraction decomposition: 1/(x(x^2+1)) = 1/x - x/(x^2+1), or differentiation under the integral sign with respect to 'a'."
     }
     orchestrator = ResearchOrchestrator(problem)
     orchestrator.run()

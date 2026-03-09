@@ -25,8 +25,14 @@ class VerifierAgent:
             "You are a mathematically rigorous and highly critical evaluator. Your task is to analyze "
             "verification results and provide critical feedback if errors exceed limits.\n"
             "- Validation Criteria: Error threshold is 1e-10.\n"
-            "- Feedback Protocol: Do not fix math yourself. Explain failure modes and command prunes.\n"
-            "Format your output as a JSON object with keys: 'status', 'critique', 'command'."
+            "- Multi-point Verification (Consistency Check): Determine if the formula diverges at a singularity. "
+            "Set `is_divergent_at_singularity` to True/False based on your analysis.\n"
+            "- Failed Path Analysis:\n"
+            "   - Type A (Algebraic error): Formula structure is likely correct but there is an algebraic mistake (coefficients/symbols). Recommend Coder to fix coefficients.\n"
+            "   - Type B (Strategy error): Singularities lead to divergence, or basis lacks analytic properties. Recommend forcing a change of basis (e.g., switch to Gegenbauer polynomials).\n"
+            "- Feedback Protocol: Return a JSON object containing keys:\n"
+            "   - 'is_divergent_at_singularity' (boolean)\n"
+            "   - 'insight' (string explaining the error, e.g., 'Integration diverges at t=1, try parameter substitution.')"
         )
 
     def verify(self, script_path, oracle_val):
@@ -64,16 +70,49 @@ class VerifierAgent:
                     stream=True
                 )
                 
-                full_critique = ""
-                print("\n--- [Verifier Critique] ---")
-                for chunk in response_stream:
-                    delta = chunk.choices[0].delta
-                    if delta.content:
-                        print(delta.content, end="", flush=True)
-                        full_critique += delta.content
-                print("\n")
+                reasoning_log = "thinking_process.txt"
+                print(f"--- [Verifier Critique] (Redirected to {reasoning_log}) ---")
                 
-                return {"status": "FAIL", "critique": full_critique, "residual": float(residual)}
+                with open(reasoning_log, "a", encoding='utf-8') as log_f:
+                    log_f.write(f"\n\n--- Verifier Critique Start ---\n")
+                    for chunk in response_stream:
+                        delta = chunk.choices[0].delta
+                        if delta.content:
+                            log_f.write(delta.content)
+                            log_f.flush()
+                            full_critique += delta.content
+                print("[Verifier] Critique generated.\n")
                 
+                try:
+                    text_to_parse = full_critique
+                    if "```json" in text_to_parse:
+                        text_to_parse = text_to_parse.split("```json")[1].split("```")[0].strip()
+                    elif "```" in text_to_parse:
+                        text_to_parse = text_to_parse.split("```")[1].split("```")[0].strip()
+                    critique_data = json.loads(text_to_parse)
+                    
+                    is_divergent = critique_data.get("is_divergent_at_singularity", False)
+                    insight = critique_data.get("insight", "Numerical deviation.")
+                    
+                    error = residual
+                    threshold = self.tolerance
+                    
+                    if error > threshold:
+                        verdict_type = "Type B" if is_divergent else "Type A"
+                        return {
+                            "status": "FAIL",
+                            "verdict": f"Branch Failed. Classification: {verdict_type}. Insight: {insight}",
+                            "prune_branch": True,
+                            "residual": float(residual)
+                        }
+                except Exception as e:
+                    return {"status": "FAIL", "verdict": "Branch Failed. Could not parse JSON critique.", "prune_branch": True}
+                
+        except subprocess.CalledProcessError as e:
+            output = e.stdout + e.stderr
+            if "EarlyExitException" in output:
+                return {"status": "FAIL", "verdict": "Branch Failed. Classification: Early Exit requested by sampling point check.", "prune_branch": True}
+            else:
+                return {"status": "FAIL", "verdict": f"Execution error: {e.stderr.strip()}", "prune_branch": True}
         except Exception as e:
-            return {"status": "FAIL", "critique": f"Execution error: {str(e)}"}
+            return {"status": "FAIL", "verdict": f"Execution error: {str(e)}", "prune_branch": True}

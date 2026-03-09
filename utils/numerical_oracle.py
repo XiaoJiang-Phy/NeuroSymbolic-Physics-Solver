@@ -1,7 +1,7 @@
 from mpmath import mp
 
-# Set global precision to 50 dps as requested
-mp.dps = 50
+# Set global precision to 100 dps for internal Oracle robustness
+mp.dps = 100
 
 class NumericalOracle:
     """
@@ -10,6 +10,37 @@ class NumericalOracle:
     """
     def __init__(self):
         pass
+
+    def evaluate_integrand(self, problem, point):
+        """
+        Evaluates the parsed integrand at a specific point for Early Exit verification.
+        """
+        try:
+            integrand_str = problem['integrand']
+            if '=' in integrand_str:
+                expr_str = integrand_str.split('=')[1].strip()
+            else:
+                expr_str = integrand_str.strip()
+
+            ctx = {
+                'cos': mp.cos, 'sin': mp.sin, 'sqrt': mp.sqrt, 
+                'pi': mp.pi, 'exp': mp.exp, 'log': mp.log,
+                'inf': mp.inf, 'oo': mp.inf,
+                'I': 1j, 'j': 1j,
+                'sp': mp, 'sympy': mp
+            }
+            
+            if 'parameters' in problem and problem['parameters']:
+                first_param = problem['parameters'][0]
+                if '=' in first_param:
+                    name, val = first_param.split('=')
+                    ctx[name.strip()] = float(val.strip())
+            
+            f = lambda x: eval(expr_str, {"__builtins__": None}, {**ctx, 't': x, 'x': x, 'z': x})
+            return f(point)
+        except Exception as e:
+            print(f"[Oracle] Error evaluating point: {e}")
+            return None
 
     def evaluate_ground_truth(self, problem):
         """
@@ -34,20 +65,45 @@ class NumericalOracle:
             ctx = {
                 'cos': mp.cos, 'sin': mp.sin, 'sqrt': mp.sqrt, 
                 'pi': mp.pi, 'exp': mp.exp, 'log': mp.log,
-                'N': 1 # Default N=1 for first validation
+                'inf': mp.inf, 'oo': mp.inf,
+                'I': 1j, 'j': 1j,
+                'sp': mp, 'sympy': mp
             }
             
-            # Replace ** with ^ or similar if needed, but Python uses **
-            f = lambda x: eval(expr_str, {"__builtins__": None}, {**ctx, 't': x, 'x': x})
+            # Extract parameter from problem['parameters']
+            # We use ONLY the first one to stay consistent with the Coder's instructions
+            if 'parameters' in problem and problem['parameters']:
+                first_param = problem['parameters'][0]
+                if '=' in first_param:
+                    name, val = first_param.split('=')
+                    ctx[name.strip()] = float(val.strip())
+            
+            f = lambda x: eval(expr_str, {"__builtins__": None}, {**ctx, 't': x, 'x': x, 'z': x})
             
             bounds = problem['bounds']
-            # Parse bounds if they are string like "[-1, 1]"
+            # Parse bounds if they are string like "[0, mp.inf]"
             if isinstance(bounds, str):
                 import re
-                nums = re.findall(r"[-+]?\d*\.\d+|\d+", bounds)
-                bounds = [float(n) for n in nums]
+                # Handle special keywords like mp.inf, inf, oo
+                clean_bounds = bounds.replace('mp.inf', 'inf').replace('oo', 'inf').strip('[]')
+                parts = [p.strip() for p in clean_bounds.split(',')]
+                actual_bounds = []
+                for p in parts:
+                    if 'inf' in p.lower():
+                        actual_bounds.append(mp.inf if '-' not in p else -mp.inf)
+                    else:
+                        actual_bounds.append(float(p))
+                # For infinite ranges, add intermediate points to help mpmath sample better
+                if any(mp.isinf(b) for b in actual_bounds):
+                    new_bounds = [actual_bounds[0]]
+                    if actual_bounds[0] < 1 < actual_bounds[-1]: new_bounds.append(1)
+                    if actual_bounds[0] < 10 < actual_bounds[-1]: new_bounds.append(10)
+                    if actual_bounds[0] < 100 < actual_bounds[-1]: new_bounds.append(100)
+                    new_bounds.append(actual_bounds[-1])
+                    actual_bounds = new_bounds
+                bounds = actual_bounds
                 
-            val = mp.quad(f, bounds)
+            val = mp.quad(f, bounds, maxdegree=12)
             return val
         except Exception as e:
             print(f"[Oracle] Error evaluating ground truth: {e}")
@@ -58,10 +114,15 @@ def get_oracle():
 
 if __name__ == "__main__":
     oracle = get_oracle()
-    result = oracle.evaluate_ground_truth()
-    print(f"Numerical result (50 dps): {result}")
-    # Analytical verification: pi * J0(1)
-    j0_1 = mp.besselj(0, 1)
-    truth = mp.pi * j0_1
-    print(f"Analytical verify (pi*J0(1)): {truth}")
-    print(f"Difference: {result - truth}")
+    problem = {
+        "integrand": "sin(a*x) / (x * (x**2 + 1))",
+        "bounds": "[0, oo]",
+        "parameters": ["a=1"]
+    }
+    result = oracle.evaluate_ground_truth(problem)
+    print(f"Numerical result (a=1): {result}")
+    
+    # Analytical: pi/2 * (1 - exp(-1))
+    analytical = mp.pi/2 * (1 - mp.exp(-1))
+    print(f"Analytical verify: {analytical}")
+    print(f"Difference: {result - analytical}")
