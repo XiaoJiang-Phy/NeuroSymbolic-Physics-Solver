@@ -11,136 +11,169 @@ class NumericalOracle:
     def __init__(self):
         pass
 
-    def evaluate_integrand(self, problem, point):
-        """
-        Evaluates the parsed integrand at a specific point for Early Exit verification.
-        """
-        try:
-            integrand_str = problem['integrand']
-            # Robust parsing for multi-line or assigned expressions
-            if "integrand" in integrand_str and "=" in integrand_str:
-                lines = integrand_str.splitlines()
-                for line in reversed(lines):
-                    if "=" in line and ("integrand" in line or "expr" in line):
-                        expr_str = line.split("=")[-1].strip()
-                        break
-            elif '=' in integrand_str:
-                expr_str = integrand_str.split('=')[1].strip()
-            else:
-                expr_str = integrand_str.strip()
+    def _clean_expression(self, expr_str):
+        if not expr_str: return ""
+        s = str(expr_str).replace('mp.inf', 'inf').replace('sp.inf', 'inf').replace('oo', 'inf')
+        
+        # Workaround for 'I' as a function name (Sympy uses I for sqrt(-1))
+        # Replace 'I(' with 'IntFunc(' if it's not preceded by a letter (avoiding things like 'sinI(')
+        import re
+        s = re.sub(r'(?<![a-zA-Z0-9_])I\(', 'IntFunc(', s)
 
-            ctx = {
-                'cos': mp.cos, 'sin': mp.sin, 'sqrt': mp.sqrt, 
-                'pi': mp.pi, 'exp': mp.exp, 'log': mp.log,
-                'inf': mp.inf, 'oo': mp.inf,
-                'I': 1j, 'j': 1j,
-                'sp': mp, 'sympy': mp,
-                'Integral': lambda expr, *args: expr,
-                'Derivative': lambda expr, *args: expr,
-                'Sum': lambda expr, *args: expr,
-                'Limit': lambda expr, *args: expr,
-                'Eq': lambda lhs, rhs: lhs - rhs,
-                'factorial': mp.fac,
-                'im': mp.im,
-                're': mp.re,
-                'tan': mp.tan,
-                'residue': lambda *args: 0.0
+        # Remove any leading variable assignments
+        import re
+        s = re.sub(r'^[a-zA-Z_][a-zA-Z0-9_\'"]*(\([^)]*\))?\s*[:=]\s*', '', s)
+        # Final cleanup of prefixes
+        if "=" in s and "(" not in s.split("=")[0]: s = s.split("=")[-1]
+        return s.strip()
+
+    def evaluate_full_expression(self, problem, expression_str):
+        try:
+            import sympy as sp
+            s = self._clean_expression(expression_str)
+            
+            # Map parameters
+            subs = {}
+            if 'parameters' in problem:
+                for p in problem['parameters']:
+                    if '=' in p:
+                        k, v = p.split('=')
+                        subs[k.strip()] = mp.mpf(v.strip())
+            
+            # Namespace
+            ns = {
+                'oo': sp.oo, 'inf': sp.oo, 'pi': sp.pi, 'Integral': sp.Integral,
+                'sin': sp.sin, 'cos': sp.cos, 'exp': sp.exp, 'log': sp.log, 'sqrt': sp.sqrt,
+                'tan': sp.tan, 'atan': sp.atan, 'Derivative': sp.Derivative, 'diff': sp.diff,
+                'f': sp.Function('f'), 'im': sp.im, 're': sp.re, 'Symbol': sp.Symbol,
+                'IntFunc': sp.Function('I'), 'I': sp.I
             }
+            expr = sp.sympify(s, locals=ns)
             
-            if 'parameters' in problem and problem['parameters']:
-                first_param = problem['parameters'][0]
-                if '=' in first_param:
-                    name, val = first_param.split('=')
-                    ctx[name.strip()] = float(val.strip())
+            # If it's an equation (Eq), take the RHS to evaluate its numerical value
+            if isinstance(expr, sp.Equality):
+                expr = expr.rhs
             
-            f = lambda x: eval(expr_str, {"__builtins__": {}}, {**ctx, 't': x, 'x': x, 'z': x})
-            return f(point)
+            # Try symbolic evaluation first
+            try:
+                # doit() evaluates integrals/derivatives if possible
+                sym_res = expr.doit().subs(subs).evalf(50)
+                if sym_res.is_number:
+                    return mp.mpf(str(sym_res))
+            except:
+                pass
+
+            # Recursive evaluator to handle nodes mpmath-style
+            def _eval_node(node):
+                if node.is_number:
+                    return mp.mpf(str(node.evalf(50)))
+                
+                # Handle constants pi/e
+                if node == sp.pi: return mp.pi
+                if node == sp.exp(1): return mp.e
+
+                # Handle sums/muls
+                if node.is_Add: return sum(_eval_node(arg) for arg in node.args)
+                if node.is_Mul:
+                    prod = mp.mpf(1)
+                    for arg in node.args: prod *= _eval_node(arg)
+                    return prod
+                if node.is_Pow: return _eval_node(node.base) ** _eval_node(node.exp)
+
+                # Handle Integral(f(x), (x, a, b))
+                if isinstance(node, sp.Integral):
+                    integrand = node.args[0]
+                    limits = node.args[1:]
+                    if len(limits) == 1:
+                        var, low, high = limits[0]
+                        # Substitutions for limits
+                        low_val = _eval_node(low.subs(subs))
+                        high_val = _eval_node(high.subs(subs))
+                        
+                        # Use mpmath.quad for numerical integration
+                        # We lambdify the integrand with mpmath functions
+                        f_num = sp.lambdify(var, integrand.subs(subs), modules='mpmath')
+                        # tanh-sinh is robust for infinite/singular integrals
+                        return mp.quad(f_num, [low_val, high_val])
+
+                # Fallback to evalf on the substituted node
+                res = node.subs(subs).evalf(50)
+                if res.is_number:
+                    return mp.mpf(str(res))
+                return None
+
+            return _eval_node(expr)
         except Exception as e:
-            print(f"[Oracle] Error evaluating point: {e}")
+            print(f"[Oracle] Parse/Eval error: {e} for {expression_str}")
+            return None
+
+    def evaluate_integrand(self, problem, point):
+        try:
+            import sympy as sp
+            s = self._clean_expression(problem['integrand'])
+            subs = {}
+            if 'parameters' in problem:
+                for p in problem['parameters']:
+                    if '=' in p:
+                        k, v = p.split('=')
+                        subs[k.strip()] = mp.mpf(v.strip())
+            
+            ns = {
+                'oo': sp.oo, 'inf': sp.oo, 'pi': sp.pi, 'sin': sp.sin, 'cos': sp.cos,
+                'exp': sp.exp, 'log': sp.log, 'sqrt': sp.sqrt,
+                'IntFunc': sp.Function('I'), 'I': sp.I
+            }
+            expr = sp.sympify(s, locals=ns)
+            # Find the free symbol that is not a parameter
+            free = [fs for fs in expr.free_symbols if str(fs) not in subs]
+            var = free[0] if free else sp.Symbol('x')
+            
+            res = expr.subs(subs).subs({var: mp.mpf(point)}).evalf(50)
+            return mp.mpf(str(res))
+        except:
             return None
 
     def evaluate_ground_truth(self, problem):
+        try:
+            integrand = self._clean_expression(problem['integrand'])
+            bounds = problem.get('bounds', '[0, inf]').strip('[]').split(',')
+            lower = self._clean_expression(bounds[0])
+            upper = self._clean_expression(bounds[1])
+            expr_str = f"Integral({integrand}, (x, {lower}, {upper}))"
+            return self.evaluate_full_expression(problem, expr_str)
+        except:
+            return None
+
+    def evaluate_derivative(self, problem, expression_str, wrt='a'):
         """
-        Numerically evaluates the integral specified in the problem definition.
-        Handles endpoints robustly using mpmath.quad.
+        Numerically differentiates the expression with respect to the parameter.
         """
         try:
-            # Simple parsing of the integrand string
-            # Expected format: "f(t, N) = (1 - (-1)**N * cos(N * pi * t)) / (1 - t**2)"
-            # Or just the expression.
-            integrand_str = problem['integrand']
-            # Robust parsing for multi-line or assigned expressions
-            if "integrand" in integrand_str and "=" in integrand_str:
-                lines = integrand_str.splitlines()
-                for line in reversed(lines):
-                    if "=" in line and ("integrand" in line or "expr" in line):
-                        expr_str = line.split("=")[-1].strip()
-                        break
-            elif '=' in integrand_str:
-                expr_str = integrand_str.split('=')[1].strip()
-            else:
-                expr_str = integrand_str.strip()
-
-            # For the MVP, we assume a single variable 't' or 'x'
-            # and parameters are handled. For N=1 (baseline for first run).
-            # In a real system, we'd parse parameters from problem['parameters']
-            
-            # Mapping common math functions to mpmath
-            ctx = {
-                'cos': mp.cos, 'sin': mp.sin, 'sqrt': mp.sqrt, 
-                'pi': mp.pi, 'exp': mp.exp, 'log': mp.log,
-                'inf': mp.inf, 'oo': mp.inf,
-                'I': 1j, 'j': 1j,
-                'sp': mp, 'sympy': mp,
-                'Integral': lambda expr, *args: expr,
-                'Derivative': lambda expr, *args: expr,
-                'Sum': lambda expr, *args: expr,
-                'Limit': lambda expr, *args: expr,
-                'Eq': lambda lhs, rhs: lhs - rhs,
-                'factorial': mp.fac,
-                'im': mp.im,
-                're': mp.re,
-                'tan': mp.tan,
-                'residue': lambda *args: 0.0
-            }
-            
-            # Extract parameter from problem['parameters']
-            # We use ONLY the first one to stay consistent with the Coder's instructions
-            if 'parameters' in problem and problem['parameters']:
-                first_param = problem['parameters'][0]
-                if '=' in first_param:
-                    name, val = first_param.split('=')
-                    ctx[name.strip()] = float(val.strip())
-            
-            f = lambda x: eval(expr_str, {"__builtins__": {}}, {**ctx, 't': x, 'x': x, 'z': x})
-            
-            bounds = problem['bounds']
-            # Parse bounds if they are string like "[0, mp.inf]"
-            if isinstance(bounds, str):
-                import re
-                # Handle special keywords like mp.inf, inf, oo
-                clean_bounds = bounds.replace('mp.inf', 'inf').replace('oo', 'inf').strip('[]')
-                parts = [p.strip() for p in clean_bounds.split(',')]
-                actual_bounds = []
-                for p in parts:
-                    if 'inf' in p.lower():
-                        actual_bounds.append(mp.inf if '-' not in p else -mp.inf)
+            # We want to evaluate d/d(wrt) of expression_str
+            # We'll create a function f(val) where val is the value of parameter 'wrt'
+            def f_val(val):
+                # Temporary problem with updated parameter
+                temp_problem = problem.copy()
+                params = []
+                for p in problem.get('parameters', []):
+                    if p.startswith(f"{wrt}="):
+                        params.append(f"{wrt}={val}")
                     else:
-                        actual_bounds.append(float(p))
-                # For infinite ranges, add intermediate points to help mpmath sample better
-                if any(mp.isinf(b) for b in actual_bounds):
-                    new_bounds = [actual_bounds[0]]
-                    if actual_bounds[0] < 1 < actual_bounds[-1]: new_bounds.append(1)
-                    if actual_bounds[0] < 10 < actual_bounds[-1]: new_bounds.append(10)
-                    if actual_bounds[0] < 100 < actual_bounds[-1]: new_bounds.append(100)
-                    new_bounds.append(actual_bounds[-1])
-                    actual_bounds = new_bounds
-                bounds = actual_bounds
-                
-            val = mp.quad(f, bounds, maxdegree=12)
-            return val
+                        params.append(p)
+                temp_problem['parameters'] = params
+                res = self.evaluate_full_expression(temp_problem, expression_str)
+                return res if res is not None else 0
+            
+            # Find the current value of the parameter
+            current_val = 1.0
+            for p in problem.get('parameters', []):
+                if p.startswith(f"{wrt}="):
+                    current_val = float(p.split('=')[1])
+            
+            # mpmath.diff handles numeric differentiation
+            return mp.diff(f_val, current_val)
         except Exception as e:
-            print(f"[Oracle] Error evaluating ground truth: {e}")
+            print(f"[Oracle] Derivative error: {e}")
             return None
 
 def get_oracle():

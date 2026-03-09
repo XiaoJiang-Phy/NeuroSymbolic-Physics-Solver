@@ -19,6 +19,10 @@ The system utilizes three specialized agents powered by DeepSeek models to itera
     *   **Role**: Execution, Critique, and Pruning.
     *   **Fail Analyzer**: Categorizes failures into **Type A** (Algebraic errors) and **Type B** (Strategy/Singularity errors) to provide precise feedback.
 
+4.  **Agent D: The Reporter (DeepSeek-V3)**
+    *   **Role**: Project Reporting & Academic Writing.
+    *   **Goal**: Compiles a comprehensive research paper or report in Markdown/LaTeX after a solution is verified or the project cycle completes. Analysis includes failure post-mortems and breakthrough summaries.
+
 ## Key Features
 
 -   **Stateful Tree Orchestration**: Maintains a `TreeLog` of all attempted paths to prevent redundant work and enable "knowledge accumulation" across restarts.
@@ -52,10 +56,11 @@ python orchestrator.py
 ## Project Structure
 
 -   `orchestrator.py`: The central loop controller and tree manager.
--   `agents/`: Contains the system instructions and logic for Theorist, Coder, and Verifier.
+-   `agents/`: Contains the system instructions and logic for Theorist, Coder, Verifier, and Reporter.
 -   `utils/numerical_oracle.py`: High-precision numerical evaluation engine.
 -   `tree_log.json`: (Generated) Persistent record of historical attempts and verdicts.
 -   `thinking_process.txt`: (Generated) Detailed log of AI reasoning and execution traces.
+-   `report_*.md`: (Generated) Detailed research reports and final papers.
 
 ## License
 MIT

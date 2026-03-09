@@ -19,6 +19,10 @@ The following workspace has been configured with a highly autonomous research lo
 - **Role**: Execution & Critique.
 - **Constraints**: Enforces < 1e-10 residual tolerance; prunes invalid logic branches.
 
+### [Reporter Agent](file:///c:/Users/Jiang/Desktop/NeuroSymbolic-Physics-Solver/agents/reporter_agent.py)
+- **Role**: Project Reporting & Academic Writing.
+- **Goal**: Generates a comprehensive Markdown/LaTeX research paper after a solution is found or the project cycle ends.
+
 ## 2. Shared Infrastructure
 
 - **[Orchestrator](file:///c:/Users/Jiang/Desktop/NeuroSymbolic-Physics-Solver/orchestrator.py)**: A state machine (INIT -> LOOP -> FEEDBACK/SUCCESS -> SAFETY) with a 10-iteration hard cap.
@@ -33,10 +37,10 @@ graph TD
     Theorist -->|Symbolic IR| Coder{Agent B: Coder}
     Coder -->|Implementation| Verifier{Agent C: Verifier}
     Verifier -->|Check < 1e-10| Result{Result?}
-    Result -->|Success| Stop[Final LaTeX Summary]
+    Result -->|Success| Reporter[Agent D: Reporter]
     Result -->|Failure| Feedback[FEEDBACK & Rollback]
     Feedback --> Theorist
-    Stop -->|End| End[Task Complete]
+    Reporter -->|Markdown/LaTeX Paper| End[Task Complete]
 ```
 
 To begin the research loop, run:
