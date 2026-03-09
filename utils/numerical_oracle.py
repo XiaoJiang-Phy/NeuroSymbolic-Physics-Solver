@@ -17,7 +17,14 @@ class NumericalOracle:
         """
         try:
             integrand_str = problem['integrand']
-            if '=' in integrand_str:
+            # Robust parsing for multi-line or assigned expressions
+            if "integrand" in integrand_str and "=" in integrand_str:
+                lines = integrand_str.splitlines()
+                for line in reversed(lines):
+                    if "=" in line and ("integrand" in line or "expr" in line):
+                        expr_str = line.split("=")[-1].strip()
+                        break
+            elif '=' in integrand_str:
                 expr_str = integrand_str.split('=')[1].strip()
             else:
                 expr_str = integrand_str.strip()
@@ -52,7 +59,14 @@ class NumericalOracle:
             # Expected format: "f(t, N) = (1 - (-1)**N * cos(N * pi * t)) / (1 - t**2)"
             # Or just the expression.
             integrand_str = problem['integrand']
-            if '=' in integrand_str:
+            # Robust parsing for multi-line or assigned expressions
+            if "integrand" in integrand_str and "=" in integrand_str:
+                lines = integrand_str.splitlines()
+                for line in reversed(lines):
+                    if "=" in line and ("integrand" in line or "expr" in line):
+                        expr_str = line.split("=")[-1].strip()
+                        break
+            elif '=' in integrand_str:
                 expr_str = integrand_str.split('=')[1].strip()
             else:
                 expr_str = integrand_str.strip()

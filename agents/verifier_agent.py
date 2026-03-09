@@ -27,7 +27,6 @@ class VerifierAgent:
             "- Validation Criteria: Error threshold is 1e-10.\n"
             "- Multi-point Verification (Consistency Check): Determine if the formula diverges at a singularity. "
             "Set `is_divergent_at_singularity` to True/False based on your analysis.\n"
-            "- Failed Path Analysis:\n"
             "   - Type A (Algebraic error): Formula structure is likely correct but there is an algebraic mistake (coefficients/symbols). Recommend Coder to fix coefficients.\n"
             "   - Type B (Strategy error): Singularities lead to divergence, or basis lacks analytic properties. Recommend forcing a change of basis (e.g., switch to Gegenbauer polynomials).\n"
             "- Feedback Protocol: Return a JSON object containing keys:\n"
@@ -73,6 +72,7 @@ class VerifierAgent:
                 reasoning_log = "thinking_process.txt"
                 print(f"--- [Verifier Critique] (Redirected to {reasoning_log}) ---")
                 
+                full_critique = ""
                 with open(reasoning_log, "a", encoding='utf-8') as log_f:
                     log_f.write(f"\n\n--- Verifier Critique Start ---\n")
                     for chunk in response_stream:
@@ -83,12 +83,17 @@ class VerifierAgent:
                             full_critique += delta.content
                 print("[Verifier] Critique generated.\n")
                 
+                import re
                 try:
                     text_to_parse = full_critique
-                    if "```json" in text_to_parse:
-                        text_to_parse = text_to_parse.split("```json")[1].split("```")[0].strip()
-                    elif "```" in text_to_parse:
-                        text_to_parse = text_to_parse.split("```")[1].split("```")[0].strip()
+                    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text_to_parse, re.DOTALL)
+                    if match:
+                        text_to_parse = match.group(1)
+                    else:
+                        start = text_to_parse.find('{')
+                        end = text_to_parse.rfind('}')
+                        if start != -1 and end != -1:
+                            text_to_parse = text_to_parse[start:end+1]
                     critique_data = json.loads(text_to_parse)
                     
                     is_divergent = critique_data.get("is_divergent_at_singularity", False)
@@ -110,7 +115,7 @@ class VerifierAgent:
                 
         except subprocess.CalledProcessError as e:
             output = e.stdout + e.stderr
-            if "EarlyExitException" in output:
+            if "EarlyExitException" in output or "deviation >" in output.lower() or "early exit" in output.lower():
                 return {"status": "FAIL", "verdict": "Branch Failed. Classification: Early Exit requested by sampling point check.", "prune_branch": True}
             else:
                 return {"status": "FAIL", "verdict": f"Execution error: {e.stderr.strip()}", "prune_branch": True}

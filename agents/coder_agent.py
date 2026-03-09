@@ -63,12 +63,17 @@ class CoderAgent:
                     full_content += delta.content
         print("[Coder] Implementation generated.\n")
         
+        import re
         try:
             text = full_content
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
+            match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+            if match:
+                text = match.group(1)
+            else:
+                start = text.find('{')
+                end = text.rfind('}')
+                if start != -1 and end != -1:
+                    text = text[start:end+1]
             return json.loads(text)
         except Exception as e:
             print(f"[Coder] Error parsing JSON response: {e}")

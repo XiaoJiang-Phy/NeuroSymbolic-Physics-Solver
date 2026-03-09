@@ -52,7 +52,9 @@ class ResearchOrchestrator:
             print(f"\n[Iteration {iteration}/{self.max_iterations}] State: {self.state}")
             
             # Step 2.1: Theorist proposes multiple (3) paths
-            proposals = self.theorist.solve(self.problem, context=self.tree_log)
+            # Context Pruning: Only pass the most recent 3 failures to avoid LLM context overflow
+            context_to_pass = dict(list(self.tree_log.items())[-3:]) if self.tree_log else {}
+            proposals = self.theorist.solve(self.problem, context=context_to_pass)
             if not isinstance(proposals, list):
                 if isinstance(proposals, dict) and 'error' in proposals:
                     print(f"Agent error: {proposals}")
@@ -94,7 +96,10 @@ class ResearchOrchestrator:
                     print(f"[Failure] Branch {index+1} Critique: {verdict}")
                     
                     # Log the negative feedback for future iterations (TreeLog)
-                    self.tree_log[f"Iteration_{iteration}_Branch_{index+1}"] = {
+                    # FIX: Use a unique key based on the global tree_log length to prevent overwriting across restarts
+                    attempt_id = len(self.tree_log) + 1
+                    log_key = f"Attempt_{attempt_id}_{symbolic_proposal.get('path_type', 'Unknown')}"
+                    self.tree_log[log_key] = {
                         "problem_name": self.problem['name'],
                         "proposal": symbolic_proposal,
                         "verdict": verdict

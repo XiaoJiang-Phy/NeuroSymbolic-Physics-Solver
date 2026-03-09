@@ -30,7 +30,7 @@ class TheoristAgent:
             "   - 'path_type': One of the allowed operators (e.g. 'Parametric_Differentiation').\n"
             "   - 'symbolic_derivation': Description of THIS SINGLE transformation.\n"
             "   - 'analytical_expression': The NEW integral form after this single transformation.\n"
-            "   - 'sympy_code': Pure SymPy to represent the NEW integrand.\n"
+            "   - 'sympy_code': Pure SymPy expression string ONLY (no imports, no assignments, just the math string like 'cos(a*x)/(x**2+1)').\n"
             "   - 'success_probability': Your predicted confidence in this path (0.0 to 1.0).\n"
         )
 
@@ -84,13 +84,18 @@ class TheoristAgent:
                     full_content += delta.content
         print("\n")
         
+        import re
         try:
             text = full_content
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
-            
+            # Try to extract the JSON array cleanly
+            match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)
+            if match:
+                text = match.group(1)
+            else:
+                start = text.find('[')
+                end = text.rfind(']')
+                if start != -1 and end != -1:
+                    text = text[start:end+1]
             return json.loads(text)
         except Exception as e:
             print(f"[Theorist] Error parsing JSON: {e}")
