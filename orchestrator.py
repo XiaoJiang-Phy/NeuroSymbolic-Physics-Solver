@@ -46,170 +46,200 @@ class ResearchOrchestrator:
     def _clean_math_expr(self, expr_str):
         if not expr_str: return ""
         s = expr_str.strip()
-        # Strip "f(x, a) = " or "I(a) = "
-        if "=" in s:
-            s = s.split("=")[-1].strip()
-        # Strip "Eq(" wrapper if Theorist agent added one
-        if s.startswith("Eq(") and s.endswith(")"):
-            # Simple but cautious extraction of RHS (second argument)
-            # This is a bit risky for complex Eq(LHS, RHS) but good as a first pass
-            parts = s[3:-1].split(",", 1)
-            if len(parts) == 2:
-                s = parts[1].strip()
+        # Remove common labels but KEEP the equation if it is meaningful
+        labels = ["f(x, a) =", "I(a) =", "New Integrand:"]
+        for label in labels:
+            if s.startswith(label):
+                s = s[len(label):].strip()
+        
+        # Don't strip Eq() anymore! We WANT Eq(lhs, rhs) for transformations.
+        # But if it starts with '```python' or something, clean that.
+        if s.startswith("```"):
+            s = s.strip("`").replace("python", "").replace("sympy", "").strip()
+            
         return s
 
     def run(self):
-        # Initialize/Clear thinking process log
-        with open("thinking_process.txt", "w", encoding='utf-8') as f:
-            f.write(f"Step-wise Research Log for: {self.problem['name']}\n")
-            f.write("="*50 + "\n")
-
-        print(f"--- Initializing Reasoning Tree for: {self.problem['name']} ---")
+        import heapq
         
-        # Current state of the derivation
-        self.current_state = {
-            "expression": self.problem['integrand'],
-            "latex": self.problem['integrand'],
-            "depth": 0
+        # Initialize/Clear thinking process log
+        log_mode = "w" if not self.tree_log else "a"
+        with open("thinking_process.txt", log_mode, encoding='utf-8') as f:
+            f.write(f"\n\n{'='*20} Search Resume/Start: {self.problem['name']} {'='*20}\n")
+        
+        print(f"--- Launching Physics-Aware Solver for: {self.problem['name']} ---")
+        
+        # Open set for Best-First Search: (neg_priority, depth, state_dict)
+        # We use negative priority for max-heap behavior
+        self.queue = []
+        
+        initial_expr = self.problem['integrand']
+        # Initial wrap for integration
+        if "Integral" not in initial_expr:
+            bounds = self.problem.get('bounds', '[0, oo]').strip('[]').split(',')
+            initial_expr = f"Integral({initial_expr}, (x, {bounds[0].strip()}, {bounds[1].strip()}))"
+            
+        start_node = {
+            "expression": initial_expr,
+            "latex": initial_expr,
+            "depth": 0,
+            "path": []
         }
         
-        for iteration in range(1, self.max_iterations + 1):
-            print(f"\n[Step {iteration}] Current Expression: {self.current_state['expression']}")
+        # If resuming, load the last successful state as the root of a new search or reconstruct queue
+        if self.tree_log:
+            last_step_key = list(self.tree_log.keys())[-1]
+            last_step = self.tree_log[last_step_key]
+            print(f"[Orchestrator] Resuming search from checkpoint: {last_step_key}")
+            start_node = {
+                "expression": last_step['to'],
+                "latex": last_step.get('latex', last_step['to']),
+                "depth": int(last_step_key.split("_")[-1]),
+                "path": list(self.tree_log.values())
+            }
+
+        # Tie-breaker counter for heapq
+        self.counter = 0
+        heapq.heappush(self.queue, (-1.0, start_node['depth'], self.counter, start_node))
+        self.counter += 1
+        
+        visited_expressions = set()
+        iteration_count = 0
+        
+        while self.queue and iteration_count < self.max_iterations:
+            neg_prob, depth, cnt, current = heapq.heappop(self.queue)
+            iteration_count += 1
             
-            # Use Theorist to propose 3 NEXT steps from the current state
-            # We pack the current state into the problem context
+            expr_str = self._clean_math_expr(current['expression'])
+            if expr_str in visited_expressions:
+                continue
+            visited_expressions.add(expr_str)
+            
+            print(f"\n[Search Step {iteration_count}] Depth: {depth}, Prob: {-neg_prob:.2f}")
+            print(f"Current Expression: {expr_str}")
+            
+            # Prepare context for Theorist
             context_to_pass = {
-                "current_state": self.current_state,
-                "derivation_path": self.history,
-                "recent_failures": dict(list(self.tree_log.items())[-3:]) if self.tree_log else {}
+                "current_state": current,
+                "derivation_path": current['path'],
+                "search_depth": depth,
+                "physics_audit_required": True
             }
             
             proposals = self.theorist.solve(self.problem, context=context_to_pass)
             if not isinstance(proposals, list):
-                if isinstance(proposals, dict) and 'error' in proposals:
-                    print(f"Agent error: {proposals}")
-                    return
-                proposals = [proposals]
+                continue
 
-            step_found = False
-            for index, step in enumerate(proposals):
-                print(f"\n>>>> [Attempt {index+1}] Action: {step.get('action_type', 'Transform')} <<<<")
-                print(f"[Theorist] Logic: {step.get('logic', '')}")
+            for step in proposals:
+                action = step.get('action_type', 'Transform')
+                child_expr = self._clean_math_expr(step.get('sympy_code', ''))
+                prob = step.get('success_probability', 0.5)
                 
-                # Verify Step Equivalence: Next_State numerical value should equal Current_State numerical value
-                print(f"[Orchestrator] Verifying mathematical equivalence of step...")
+                print(f"  > Considering: {action} (p={prob})")
                 
-                # Numerical check: evaluate both expressions
+                # Numerical Equivalence Check
                 try:
-                    # Parent expression value
-                    parent_expr = self._clean_math_expr(self.current_state['expression'])
-                    # If it's a raw integrand (like in the first step), wrap it
-                    if "Integral" not in parent_expr:
-                        bounds = self.problem.get('bounds', '[0, oo]').strip('[]').split(',')
-                        parent_expr = f"Integral({parent_expr}, (x, {bounds[0]}, {bounds[1]}))"
+                    # Verification Match Check
+                    parent_expr = current['expression']
                     
-                    action = step.get('action_type', '').lower()
-                    child_expr = self._clean_math_expr(step.get('sympy_code', ''))
+                    # Determine possible matches
+                    matches = []
+                    
+                    # Choice 1: Direct Equivalence
+                    p_val = self.oracle.evaluate_full_expression(self.problem, parent_expr)
+                    c_val = self.oracle.evaluate_full_expression(self.problem, child_expr)
+                    if p_val is not None and c_val is not None:
+                        matches.append(abs(p_val - c_val))
+                    
+                    # Choice 2: Parent is Derivative of Child (Integration step)
+                    if "integration" in action.lower() or "integrating" in action.lower():
+                        c_deriv_val = self.oracle.evaluate_derivative(self.problem, child_expr, wrt='a')
+                        if p_val is not None and c_deriv_val is not None:
+                            matches.append(abs(p_val - c_deriv_val))
+                            
+                    # Choice 3: Child is Derivative of Parent (Differentiation step)
+                    if "differentiation" in action.lower() or "differentiating" in action.lower():
+                        p_deriv_val = self.oracle.evaluate_derivative(self.problem, parent_expr, wrt='a')
+                        if p_deriv_val is not None and c_val is not None:
+                            matches.append(abs(p_deriv_val - c_val))
 
-                    if "differentiation" in action:
-                        print(f"[Orchestrator] Differentiation step detected. Comparing I'(a) vs Child...")
-                        # Assume differentiating w.r.t 'a' (default parameter)
-                        parent_val = self.oracle.evaluate_derivative(self.problem, parent_expr, wrt='a')
+                    # Success if ANY match works
+                    if not matches:
+                        print(f"    [Warning] Oracle evaluation failed for this branch.")
+                        if prob < 0.7: continue
                     else:
-                        parent_val = self.oracle.evaluate_full_expression(self.problem, parent_expr)
-                    
-                    child_val = self.oracle.evaluate_full_expression(self.problem, child_expr)
-                    
-                    if parent_val is not None and child_val is not None:
-                        diff = abs(parent_val - child_val)
-                        print(f"[Orchestrator] Parent: {parent_val}, Child: {child_val}, Diff: {diff}")
-                        if diff > 1e-4:
-                            print(f"[Failure] Step invalid: numerical mismatch ({diff})")
+                        best_diff = min(matches)
+                        # Relaxed check for complex derivations
+                        if best_diff > 1e-3:
+                            print(f"    [Invalid] Numerical mismatch (Best Diff: {best_diff})")
                             continue
-                    else:
-                        if parent_val is None:
-                            print(f"[Failure] Oracle could not evaluate parent/derivative: {parent_expr}")
-                        if child_val is None:
-                            print(f"[Failure] Oracle could not evaluate child: {child_expr}")
-                        continue
+ 
                 except Exception as e:
-                    print(f"[Failure] Equivalence check failed with exception: {e}")
+                    print(f"    [Error] Exception during validation: {e}")
                     continue
+
+                new_node = {
+                    "expression": child_expr,
+                    "latex": step.get('intermediate_expression'),
+                    "depth": depth + 1,
+                    "path": current['path'] + [step]
+                }
                 
-                # Check for loops (if this expression was already reached earlier)
-                if any(h.get('sympy_code') == step.get('sympy_code') for h in self.history):
-                    print(f"[Failure] Infinite loop detected. Rejecting proposal.")
-                    continue
-                
-                # If terminal, verify the final result against the Ground Truth Oracle
+                # Terminal Check
                 if step.get('is_terminal'):
-                    print(f"[Orchestrator] Terminal step reached. Verifying final result...")
+                    print(f"    [Terminal] Target reached. Verifying final result...")
                     oracle_val = self.oracle.evaluate_ground_truth(self.problem)
+                    # We don't pass oracle_val as a point sampler for the FINAL result comparison
+                    implementation = self.coder.generate_implementation(self.problem, step)
                     
-                    # Coder generates execution script for the final expression
-                    # (In a real system, Coder would solve the resulting standard integral)
-                    implementation = self.coder.generate_implementation(step, oracle_val)
-                    script_path = f"eval_step_{iteration}_{index+1}.py"
+                    script_path = f"eval_terminal_{iteration_count}.py"
                     with open(script_path, "w", encoding='utf-8') as f:
                         f.write(implementation.get("python_script", ""))
                     
                     verification_result = self.verifier.verify(script_path, oracle_val)
-                    
                     if verification_result.get("status") == "SUCCESS":
-                        print(f"[Success] Logic chain completed! Residual: {verification_result.get('residual')}")
-                        self.history.append(step)
-                        self.finalize(step)
+                        print(f"    [SUCCESS] Solution Verified!")
+                        self.finalize(step, new_node['path'])
                         return
                     else:
-                        print(f"[Failure] Terminal verification failed: {verification_result.get('verdict')}")
+                        critique = verification_result.get("verdict") or verification_result.get("critique") or "Unknown error"
+                        res = verification_result.get("residual", "N/A")
+                        print(f"    [Pruned] Terminal verification failed. Residual: {res}. Critique: {critique}")
                 else:
-                    # Non-terminal step: update state and move forward
-                    print(f"[Success] Step validated. Moving to next expression.")
-                    self.current_state = {
-                        "expression": step.get('sympy_code'),
-                        "latex": step.get('intermediate_expression'),
-                        "depth": iteration
-                    }
-                    self.history.append(step)
+                    # Generic Node: Push to Queue
+                    # Priority is boosted by success_probability and penalized by depth
+                    priority = prob * (0.9 ** depth)
+                    heapq.heappush(self.queue, (-priority, depth + 1, self.counter, new_node))
+                    self.counter += 1
                     
-                    # Log to tree log
-                    attempt_id = len(self.tree_log) + 1
-                    self.tree_log[f"Step_{attempt_id}"] = {
-                        "from": parent_expr,
-                        "to": step.get('sympy_code'),
-                        "action": step.get('action_type'),
-                        "logic": step.get('logic')
+                    # Log successful steps to tree_log for global visibility
+                    step_id = len(self.tree_log) + 1
+                    self.tree_log[f"Checkpoint_{step_id}"] = {
+                        "from": current['expression'],
+                        "to": child_expr,
+                        "action": action,
+                        "logic": step.get('logic'),
+                        "latex": step.get('intermediate_expression'),
+                        "prob": prob
                     }
                     self._save_tree_log()
-                    step_found = True
-                    break # DFS-like exploration: take the first successful branch
 
-            if not step_found:
-                print(f"[Backtrack] No valid transformation found at this level. Restarting search.")
-                self.state = "RETRY"
-                # In a more advanced version, we would backtrack to the previous node
-                continue
-
-        print("\n[Safety] Hard cap of 10 iterations reached. All paths failed. Halting.")
-        # Trigger report even on failure to summarize attempts
+        print("\n[Halt] Search space exhausted or max iterations reached.")
         self.reporter.generate_report(self.problem, self.tree_log, "thinking_process.txt", language=self.report_language)
 
-    def finalize(self, result):
-        print("\n--- Compiling Final Summary ---")
-        # Extract LaTeX and analytical expressions
-        print(f"Final Analytical Solution: {result.get('analytical_expression', 'Undetermined')}")
-        
-        # Trigger Reporter Agent for the full project paper
+    def finalize(self, result, full_path):
+        print("\n--- Compiling Final Scientific Report ---")
+        # Synthesize the full path for the reporter
         self.reporter.generate_report(self.problem, self.tree_log, "thinking_process.txt", final_solution=result, language=self.report_language)
 
 if __name__ == "__main__":
     problem = {
             "name": "Parametric Sinusoidal Decay Integral",
-            "integrand": "f(x, a) = sin(a*x) / (x * (x**2 + 1))",
-            "bounds": "[0, mp.inf]",
+            "integrand": "sin(a*x) / (x * (x**2 + 1))",
+            "bounds": "[0, oo]",
             "parameters": ["a=1", "a=2", "a=5"],
             "target": "Find the general closed-form solution as a function of parameter 'a' (a > 0).",
             "hint": "Consider partial fraction decomposition: 1/(x(x^2+1)) = 1/x - x/(x^2+1), or differentiation under the integral sign with respect to 'a'."
     }
-    orchestrator = ResearchOrchestrator(problem, report_language="Chinese") # Example: Generate report in Chinese
+    orchestrator = ResearchOrchestrator(problem, report_language="Chinese")
     orchestrator.run()

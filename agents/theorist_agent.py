@@ -88,7 +88,7 @@ class TheoristAgent:
         try:
             text = full_content
             # Try to extract the JSON array cleanly
-            match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', text, re.DOTALL)
+            match = re.search(r'```(?:json)?\s*(\[.*\])\s*```', text, re.DOTALL)
             if match:
                 text = match.group(1)
             else:

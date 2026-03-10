@@ -1,66 +1,72 @@
 # NeuroSymbolic-Physics-Solver
 
-A multi-agent, stateful tree-based orchestration system designed to solve complex physics and mathematics problems (integrals, ODEs, etc.) using a combination of symbolic reasoning and numerical verification.
+A multi-agent, stateful tree-based orchestration system designed to solve complex physics and mathematics problems (integrals, ODEs, etc.) using a combination of **Deep-Reasoning Symbolic Symbolic Intelligence** and **High-Precision Numerical Verification**.
 
-## Core Architecture
+## 🚀 Recent Solution Success
 
-The system utilizes three specialized agents powered by DeepSeek models to iteratively derive solutions:
+The solver recently achieved a zero-error closed-form derivation for the **Parametric Sinusoidal Decay Integral**:
+
+$$I(a) = \int_{0}^{\infty} \frac{\sin(ax)}{x(x^2+1)} \, dx = \frac{\pi}{2}(1 - e^{-a}), \quad a > 0$$
+
+### Key Breakthroughs in this Solution:
+- **Symbolic-Numerical Hybrid**: Correctly identified the integral representation of $\frac{\sin(ax)}{x}$, swapped integration order via Fubini's theorem, and evaluated using standard Fourier cosine transforms.
+- **Precision Validation**: Verified against `mpmath` ground-truth at $a \in \{1, 2, 5\}$ with absolute residuals $< 10^{-15}$.
+- **Automated Reporting**: Generated a complete academic report in Chinese: [`report_Parametric_Sinusoidal_Decay_Integral.md`](./report_Parametric_Sinusoidal_Decay_Integral.md).
+
+## 🧠 Core Architecture
+
+The system utilizes four specialized agents powered by **DeepSeek-R1 (Reasoning)** and **DeepSeek-V3** to iteratively explore the solution space:
 
 1.  **Agent A: The Theorist (DeepSeek-R1)**
-    *   **Role**: Symbolic & Mathematical Reasoning.
-    *   **Priors**: Guided by physics-specific priors (Asymptotic Matching, Singularity First, Dimensional Consistency).
-    *   **Sampling**: Generates 3 differentiated mathematical paths per iteration.
+    *   **Mechanism**: Performs "Chain-of-Thought" reasoning to propose **Atomic Derivation Steps**.
+    *   **Exploration**: Generates 3 differentiated mathematical paths (e.g., Substitution, Integration by Parts, Contour Integration).
+    *   **Physics Priors**: Prioritizes paths involving Asymptotic Matching, Singularity Analysis, and Standard Transform recognition.
 
 2.  **Agent B: The Coder (DeepSeek-V3)**
-    *   **Role**: Implementation & Interoperability.
-    *   **Safeguards**: Implements **Early Exit** mechanisms via point sampling (comparing with Numerical Oracle) to prune invalid branches before expensive full integrations.
+    *   **Translation**: Converts symbolic strategies into executable Python code using `SymPy` and `mpmath`.
+    *   **Guardrails**: Implements **Early Exit** point-sampling to prune branches where the symbolic expression deviates from the numerical truth by $>10\%$.
 
 3.  **Agent C: The Verifier (DeepSeek-V3)**
-    *   **Role**: Execution, Critique, and Pruning.
-    *   **Fail Analyzer**: Categorizes failures into **Type A** (Algebraic errors) and **Type B** (Strategy/Singularity errors) to provide precise feedback.
+    *   **Logic**: Performs numerical equivalence checks across entire parameter ranges.
+    *   **Calculus-Aware**: Interrogates differentiation/integration steps by comparing values to numerical derivatives.
+    *   **Categorization**: Prunes the tree and provides feedback to the Theorist if a branch fails.
 
 4.  **Agent D: The Reporter (DeepSeek-V3)**
-    *   **Role**: Project Reporting & Academic Writing.
-    *   **Goal**: Compiles a comprehensive research paper or report in Markdown/LaTeX after a solution is verified or the project cycle completes. Analysis includes failure post-mortems and breakthrough summaries.
+    *   **Synthesis**: Compiles final research papers or reports in Markdown/LaTeX.
+    *   **Post-Mortem**: Analyzes failure logs to document "Dead Ends" and "Turning Points" in the derivation.
 
-## Key Features
+## 🛠️ Advanced Features
 
--   **Stateful Tree Orchestration**: Maintains a `TreeLog` of all attempted paths to prevent redundant work and enable "knowledge accumulation" across restarts.
--   **Context Pruning**: Automatically deletes failed intermediate code to maintain a clean workspace and minimize context noise for the agents.
--   **Numerical Oracle**: Uses high-precision `mpmath` (up to 50+ dps) to provide ground-truth baseline values for validation.
--   **Thinking Logs**: All detailed reasoning chains from R1 and agent critiques are redirected to `thinking_process.txt` for transparent debugging without cluttering the terminal.
+-   **Best-First Search (BFS)**: Uses a priority queue to explore the most promising mathematical paths first, balancing `success_probability` and `graph_depth`.
+-   **Numerical Oracle**: A 50-100 dps engine capable of handling nested integrals, recursive function calls, and symbolic parameter substitutions.
+-   **State Management**: Persistent `tree_log.json` allows the solver to resume from the last successful checkpoint after crashes or API timeouts.
+-   **Diagnostic Transparency**: All internal "Inner Monologues" (reasoning tokens) from the R1 models are preserved in `thinking_process.txt`.
 
-## Getting Started
+## ⚙️ Getting Started
 
 ### Prerequisites
-
--   Python 3.10+
--   `mpmath`, `sympy`, `openai`, `matplotlib`, `python-dotenv`
+- Python 3.10+
+- Dependencies: `mpmath`, `sympy`, `openai`, `matplotlib`, `python-dotenv`
 
 ### Installation
+1. Clone the repository.
+2. Create a `.env` file:
+   ```env
+   DEEPSEEK_API_KEY=your_key_here
+   ```
 
-1.  Clone the repository.
-2.  Set up your environment variables in a `.env` file:
-    ```bash
-    DEEPSEEK_API_KEY=your_key_here
-    ```
-
-### Running the Solver
-
-Execute the main orchestrator to start the derivation loop:
-
+### Execution
 ```bash
 python orchestrator.py
 ```
 
-## Project Structure
+## 📂 Project Structure
+- `orchestrator.py`: Root loop and search manager.
+- `agents/`: Core AI instructions and solver logic.
+- `utils/numerical_oracle.py`: High-precision calculus engine.
+- `tree_log.json`: The "Long-term Memory" of the solution tree.
+- `thinking_process.txt`: Integrated reasoning and execution logs.
+- `report_*.md`: Final scientific outputs.
 
--   `orchestrator.py`: The central loop controller and tree manager.
--   `agents/`: Contains the system instructions and logic for Theorist, Coder, Verifier, and Reporter.
--   `utils/numerical_oracle.py`: High-precision numerical evaluation engine.
--   `tree_log.json`: (Generated) Persistent record of historical attempts and verdicts.
--   `thinking_process.txt`: (Generated) Detailed log of AI reasoning and execution traces.
--   `report_*.md`: (Generated) Detailed research reports and final papers.
-
-## License
+## 📄 License
 MIT

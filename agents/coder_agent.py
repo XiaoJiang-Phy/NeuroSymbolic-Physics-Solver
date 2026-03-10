@@ -33,13 +33,13 @@ class CoderAgent:
             "unless necessary, and ensure the last line is a pure number."
         )
 
-    def generate_implementation(self, symbolic_ir, oracle_point_val=None):
+    def generate_implementation(self, problem_definition, symbolic_ir, oracle_point_val=None):
         if not self.api_key:
             return {"error": "DeepSeek API Key not found."}
 
         print(f"[Coder] Generating Python implementation...")
         
-        prompt = f"{self.system_prompt}\n\nTheorist's IR: {json.dumps(symbolic_ir)}"
+        prompt = f"{self.system_prompt}\n\nProblem Definition: {json.dumps(problem_definition)}\n\nTheorist's IR: {json.dumps(symbolic_ir)}"
         if oracle_point_val is not None:
             prompt += f"\n\nOracle value at integration variable = 0.999 is {oracle_point_val}. Please insert the point sampling early exit check."
         

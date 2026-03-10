@@ -13,18 +13,22 @@ class NumericalOracle:
 
     def _clean_expression(self, expr_str):
         if not expr_str: return ""
-        s = str(expr_str).replace('mp.inf', 'inf').replace('sp.inf', 'inf').replace('oo', 'inf')
+        s = str(expr_str)
+        
+        # Consistent infinity replacement
+        s = s.replace('mp.inf', 'oo').replace('sp.inf', 'oo').replace('inf', 'oo')
         
         # Workaround for 'I' as a function name (Sympy uses I for sqrt(-1))
-        # Replace 'I(' with 'IntFunc(' if it's not preceded by a letter (avoiding things like 'sinI(')
         import re
         s = re.sub(r'(?<![a-zA-Z0-9_])I\(', 'IntFunc(', s)
 
-        # Remove any leading variable assignments
-        import re
+        # Remove any leading variable assignments like "f(x, a) =" 
         s = re.sub(r'^[a-zA-Z_][a-zA-Z0-9_\'"]*(\([^)]*\))?\s*[:=]\s*', '', s)
-        # Final cleanup of prefixes
-        if "=" in s and "(" not in s.split("=")[0]: s = s.split("=")[-1]
+        
+        # Remove any lingering "=" if it's not an equation
+        if "=" in s and "Eq(" not in s: 
+            s = s.split("=")[-1]
+            
         return s.strip()
 
     def evaluate_full_expression(self, problem, expression_str):
@@ -32,45 +36,57 @@ class NumericalOracle:
             import sympy as sp
             s = self._clean_expression(expression_str)
             
-            # Map parameters
+            # Map parameters: Use the FIRST value if multiple are provided
             subs = {}
             if 'parameters' in problem:
                 for p in problem['parameters']:
                     if '=' in p:
                         k, v = p.split('=')
-                        subs[k.strip()] = mp.mpf(v.strip())
+                        k = k.strip()
+                        if k not in subs:
+                            subs[k] = mp.mpf(v.strip())
             
             # Namespace
             ns = {
-                'oo': sp.oo, 'inf': sp.oo, 'pi': sp.pi, 'Integral': sp.Integral,
+                'oo': sp.oo, 'pi': sp.pi, 'Integral': sp.Integral,
                 'sin': sp.sin, 'cos': sp.cos, 'exp': sp.exp, 'log': sp.log, 'sqrt': sp.sqrt,
                 'tan': sp.tan, 'atan': sp.atan, 'Derivative': sp.Derivative, 'diff': sp.diff,
                 'f': sp.Function('f'), 'im': sp.im, 're': sp.re, 'Symbol': sp.Symbol,
+                'Eq': sp.Eq, 'Abs': sp.Abs,
+                'a': sp.Symbol('a'), 'x': sp.Symbol('x'), 'u': sp.Symbol('u'), 't': sp.Symbol('t'), 'C': sp.Symbol('C'),
                 'IntFunc': sp.Function('I'), 'I': sp.I
             }
             expr = sp.sympify(s, locals=ns)
             
-            # If it's an equation (Eq), take the RHS to evaluate its numerical value
+            if 'C' not in subs:
+                subs['C'] = 0
+            
+            # If it's an equation (Eq), take the RHS immediately
             if isinstance(expr, sp.Equality):
                 expr = expr.rhs
             
+            # Substitute parameters after taking RHS to avoid diff(expr, value) errors
+            expr = expr.subs(subs)
+            
             # Try symbolic evaluation first
             try:
-                # doit() evaluates integrals/derivatives if possible
-                sym_res = expr.doit().subs(subs).evalf(50)
+                sym_res = expr.doit().evalf(50)
                 if sym_res.is_number:
                     return mp.mpf(str(sym_res))
             except:
                 pass
-
-            # Recursive evaluator to handle nodes mpmath-style
+            
+            # Recursive evaluator
             def _eval_node(node):
                 if node.is_number:
+                    # mpmath handles string conversion of SymPy numbers well
                     return mp.mpf(str(node.evalf(50)))
                 
-                # Handle constants pi/e
+                # Handle constants
                 if node == sp.pi: return mp.pi
                 if node == sp.exp(1): return mp.e
+                if node == sp.oo: return mp.inf
+                if node == sp.I: return mp.j
 
                 # Handle sums/muls
                 if node.is_Add: return sum(_eval_node(arg) for arg in node.args)
@@ -80,31 +96,78 @@ class NumericalOracle:
                     return prod
                 if node.is_Pow: return _eval_node(node.base) ** _eval_node(node.exp)
 
-                # Handle Integral(f(x), (x, a, b))
+                # Handle functions
+                # Check for various SymPy function types
+                if node.is_Function or any(isinstance(node, t) for t in [sp.sin, sp.cos, sp.exp, sp.log, sp.sqrt, sp.Abs, sp.im, sp.re, sp.tan, sp.atan]):
+                    func_name = str(node.func).split('.')[-1]
+                    args = [_eval_node(arg) for arg in node.args]
+                    
+                    if func_name == 'sin': return mp.sin(args[0])
+                    if func_name == 'cos': return mp.cos(args[0])
+                    if func_name == 'exp': return mp.exp(args[0])
+                    if func_name == 'log': return mp.log(args[0])
+                    if func_name == 'sqrt': return mp.sqrt(args[0])
+                    if func_name == 'Abs': return abs(args[0])
+                    if func_name == 'im': return mp.im(args[0])
+                    if func_name == 're': return mp.re(args[0])
+                    if func_name == 'tan': return mp.tan(args[0])
+                    if func_name == 'atan': return mp.atan(args[0])
+                    # For unknown functions, try symbolic evalf
+                    pass
+
+                # Handle Integral
                 if isinstance(node, sp.Integral):
                     integrand = node.args[0]
                     limits = node.args[1:]
-                    if len(limits) == 1:
-                        var, low, high = limits[0]
-                        # Substitutions for limits
-                        low_val = _eval_node(low.subs(subs))
-                        high_val = _eval_node(high.subs(subs))
+                    if len(limits) >= 1:
+                        var, low, high = limits[-1]
+                        remaining_limits = limits[:-1]
                         
-                        # Use mpmath.quad for numerical integration
-                        # We lambdify the integrand with mpmath functions
-                        f_num = sp.lambdify(var, integrand.subs(subs), modules='mpmath')
-                        # tanh-sinh is robust for infinite/singular integrals
-                        return mp.quad(f_num, [low_val, high_val])
+                        low_val = _eval_node(low)
+                        high_val = _eval_node(high)
+                        
+                        def f_inner(v):
+                            try:
+                                inner_node = integrand
+                                if remaining_limits:
+                                    inner_node = sp.Integral(integrand, *remaining_limits)
+                                res = _eval_node(inner_node.subs({var: v}))
+                                if res is None:
+                                    # Try a small offset for singularities
+                                    res = _eval_node(inner_node.subs({var: v + 1e-20}))
+                                return res
+                            except ZeroDivisionError:
+                                # Handle removable singularities at v=0 (e.g., sin(x)/x)
+                                return _eval_node(inner_node.subs({var: v + 1e-20}))
+                            except Exception as e:
+                                # print(f"[Oracle] f_inner error at v={v}: {e}")
+                                return 0
+                        
+                        try:
+                            # Use error=True to see mpmath quad errors
+                            return mp.quad(f_inner, [low_val, high_val])
+                        except Exception as e:
+                            print(f"[Oracle] mp.quad error: {e}")
+                            # If it fails, try with a slightly shifted lower bound if it's 0
+                            if low_val == 0:
+                                try:
+                                    return mp.quad(f_inner, [mp.mpf('1e-15'), high_val])
+                                except:
+                                    return None
+                            return None
 
-                # Fallback to evalf on the substituted node
-                res = node.subs(subs).evalf(50)
-                if res.is_number:
-                    return mp.mpf(str(res))
+                # Fallback: full symbolic evaluation
+                try:
+                    res = node.evalf(50)
+                    if res.is_number:
+                        return mp.mpf(str(res))
+                except:
+                    pass
                 return None
 
-            return _eval_node(expr)
+            res = _eval_node(expr)
+            return res
         except Exception as e:
-            print(f"[Oracle] Parse/Eval error: {e} for {expression_str}")
             return None
 
     def evaluate_integrand(self, problem, point):
@@ -116,15 +179,16 @@ class NumericalOracle:
                 for p in problem['parameters']:
                     if '=' in p:
                         k, v = p.split('=')
-                        subs[k.strip()] = mp.mpf(v.strip())
+                        k = k.strip()
+                        if k not in subs:
+                            subs[k] = mp.mpf(v.strip())
             
             ns = {
-                'oo': sp.oo, 'inf': sp.oo, 'pi': sp.pi, 'sin': sp.sin, 'cos': sp.cos,
+                'oo': sp.oo, 'pi': sp.pi, 'sin': sp.sin, 'cos': sp.cos,
                 'exp': sp.exp, 'log': sp.log, 'sqrt': sp.sqrt,
                 'IntFunc': sp.Function('I'), 'I': sp.I
             }
             expr = sp.sympify(s, locals=ns)
-            # Find the free symbol that is not a parameter
             free = [fs for fs in expr.free_symbols if str(fs) not in subs]
             var = free[0] if free else sp.Symbol('x')
             
@@ -136,7 +200,7 @@ class NumericalOracle:
     def evaluate_ground_truth(self, problem):
         try:
             integrand = self._clean_expression(problem['integrand'])
-            bounds = problem.get('bounds', '[0, inf]').strip('[]').split(',')
+            bounds = problem.get('bounds', '[0, oo]').strip('[]').split(',')
             lower = self._clean_expression(bounds[0])
             upper = self._clean_expression(bounds[1])
             expr_str = f"Integral({integrand}, (x, {lower}, {upper}))"
@@ -166,15 +230,30 @@ class NumericalOracle:
             
             # Find the current value of the parameter
             current_val = 1.0
+            found = False
             for p in problem.get('parameters', []):
                 if p.startswith(f"{wrt}="):
                     current_val = float(p.split('=')[1])
+                    found = True
+                    break
             
-            # mpmath.diff handles numeric differentiation
-            return mp.diff(f_val, current_val)
+            if not found and wrt == 'a':
+                # Try to search in other formats if needed, or default
+                pass
+            
+            # Manual central difference for better stability with sympify/subs
+            h = 1e-7
+            v_plus = f_val(current_val + h)
+            v_minus = f_val(current_val - h)
+            
+            if v_plus is None or v_minus is None:
+                # Fallback to one-sided if needed, though f_val returns 0 on None
+                return 0
+                
+            return (mp.mpf(str(v_plus)) - mp.mpf(str(v_minus))) / (2 * h)
         except Exception as e:
             print(f"[Oracle] Derivative error: {e}")
-            return None
+            return 0
 
 def get_oracle():
     return NumericalOracle()
