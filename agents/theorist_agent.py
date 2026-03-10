@@ -32,6 +32,7 @@ class TheoristAgent:
             "   - 'sympy_code': The NEW mathematical expression as a pure SymPy string.\n"
             "   - 'is_terminal': Boolean, True if this step leads directly to a known standard integral or a final closed-form solution.\n"
             "   - 'success_probability': Confidence that this step is on the optimal path (0.0 to 1.0).\n"
+            "   - 'simplicity_score': Rank 1 to 10 how ELEGANT and SIMPLE the resulting expression is (10 = extremely clean identity, 1 = extremely cluttered series). Prioritize paths with fewest terms and least reliance on complex special functions. If complexity increases linearly with depth, penalize immediately."
         )
 
     def solve(self, problem_definition, context=None):

@@ -20,11 +20,13 @@ class ResearchOrchestrator:
         self.reporter = ReporterAgent()
         self.oracle = get_oracle()
         self.state = "INIT"
-        self.max_iterations = 10
+        self.max_iterations = 15
         self.log_path = "tree_log.json"
         self.tree_log = self._load_tree_log()
         self.report_language = report_language
         self.history = []
+        self.banned_strategies = set()
+        self.failed_verdicts = [] # For context distillation
 
     def _load_tree_log(self):
         if os.path.exists(self.log_path):
@@ -45,7 +47,7 @@ class ResearchOrchestrator:
 
     def _clean_math_expr(self, expr_str):
         if not expr_str: return ""
-        s = expr_str.strip()
+        s = str(expr_str).strip()
         # Remove common labels but KEEP the equation if it is meaningful
         labels = ["f(x, a) =", "I(a) =", "New Integrand:"]
         for label in labels:
@@ -53,28 +55,42 @@ class ResearchOrchestrator:
                 s = s[len(label):].strip()
         
         # Don't strip Eq() anymore! We WANT Eq(lhs, rhs) for transformations.
-        # But if it starts with '```python' or something, clean that.
         if s.startswith("```"):
             s = s.strip("`").replace("python", "").replace("sympy", "").strip()
             
+        import re
+        s = re.sub(r'(?<![a-zA-Z0-9_])I\(', 'IntFunc(', s)
         return s
+
+    def _distill_context(self, current_node):
+        """
+        Principle 4: 精简上下文 (Context Distillation)
+        Removes redundant code from failed paths, keeping only brief mathematical verdicts.
+        """
+        distilled = {
+            "successful_path": [
+                {
+                    "action": step.get("action_type"),
+                    "expr": step.get("sympy_code"),
+                    "logic": step.get("logic")[:200] + "..." # Truncate long logic
+                } for step in current_node['path']
+            ],
+            "failed_attempts_verdicts": self.failed_verdicts[-10:], # Keep last 10 failed verdicts
+            "banned_strategies": list(self.banned_strategies)
+        }
+        return distilled
 
     def run(self):
         import heapq
         
-        # Initialize/Clear thinking process log
         log_mode = "w" if not self.tree_log else "a"
         with open("thinking_process.txt", log_mode, encoding='utf-8') as f:
             f.write(f"\n\n{'='*20} Search Resume/Start: {self.problem['name']} {'='*20}\n")
         
         print(f"--- Launching Physics-Aware Solver for: {self.problem['name']} ---")
         
-        # Open set for Best-First Search: (neg_priority, depth, state_dict)
-        # We use negative priority for max-heap behavior
         self.queue = []
-        
         initial_expr = self.problem['integrand']
-        # Initial wrap for integration
         if "Integral" not in initial_expr:
             bounds = self.problem.get('bounds', '[0, oo]').strip('[]').split(',')
             initial_expr = f"Integral({initial_expr}, (x, {bounds[0].strip()}, {bounds[1].strip()}))"
@@ -86,7 +102,6 @@ class ResearchOrchestrator:
             "path": []
         }
         
-        # If resuming, load the last successful state as the root of a new search or reconstruct queue
         if self.tree_log:
             last_step_key = list(self.tree_log.keys())[-1]
             last_step = self.tree_log[last_step_key]
@@ -98,7 +113,6 @@ class ResearchOrchestrator:
                 "path": list(self.tree_log.values())
             }
 
-        # Tie-breaker counter for heapq
         self.counter = 0
         heapq.heappush(self.queue, (-1.0, start_node['depth'], self.counter, start_node))
         self.counter += 1
@@ -107,7 +121,7 @@ class ResearchOrchestrator:
         iteration_count = 0
         
         while self.queue and iteration_count < self.max_iterations:
-            neg_prob, depth, cnt, current = heapq.heappop(self.queue)
+            neg_priority, depth, cnt, current = heapq.heappop(self.queue)
             iteration_count += 1
             
             expr_str = self._clean_math_expr(current['expression'])
@@ -115,16 +129,11 @@ class ResearchOrchestrator:
                 continue
             visited_expressions.add(expr_str)
             
-            print(f"\n[Search Step {iteration_count}] Depth: {depth}, Prob: {-neg_prob:.2f}")
+            print(f"\n[Search Step {iteration_count}] Depth: {depth}, Priority: {-neg_priority:.2f}")
             print(f"Current Expression: {expr_str}")
             
-            # Prepare context for Theorist
-            context_to_pass = {
-                "current_state": current,
-                "derivation_path": current['path'],
-                "search_depth": depth,
-                "physics_audit_required": True
-            }
+            context_to_pass = self._distill_context(current)
+            context_to_pass["search_depth"] = depth
             
             proposals = self.theorist.solve(self.problem, context=context_to_pass)
             if not isinstance(proposals, list):
@@ -132,50 +141,46 @@ class ResearchOrchestrator:
 
             for step in proposals:
                 action = step.get('action_type', 'Transform')
+                if action in self.banned_strategies:
+                    print(f"  > Skipping banned strategy: {action}")
+                    continue
+                    
                 child_expr = self._clean_math_expr(step.get('sympy_code', ''))
                 prob = step.get('success_probability', 0.5)
+                simplicity = step.get('simplicity_score', 5)
                 
-                print(f"  > Considering: {action} (p={prob})")
+                print(f"  > Considering: {action} (p={prob}, s={simplicity})")
                 
-                # Numerical Equivalence Check
                 try:
-                    # Verification Match Check
                     parent_expr = current['expression']
-                    
-                    # Determine possible matches
                     matches = []
                     
-                    # Choice 1: Direct Equivalence
                     p_val = self.oracle.evaluate_full_expression(self.problem, parent_expr)
                     c_val = self.oracle.evaluate_full_expression(self.problem, child_expr)
                     if p_val is not None and c_val is not None:
                         matches.append(abs(p_val - c_val))
                     
-                    # Choice 2: Parent is Derivative of Child (Integration step)
                     if "integration" in action.lower() or "integrating" in action.lower():
                         c_deriv_val = self.oracle.evaluate_derivative(self.problem, child_expr, wrt='a')
                         if p_val is not None and c_deriv_val is not None:
                             matches.append(abs(p_val - c_deriv_val))
                             
-                    # Choice 3: Child is Derivative of Parent (Differentiation step)
                     if "differentiation" in action.lower() or "differentiating" in action.lower():
                         p_deriv_val = self.oracle.evaluate_derivative(self.problem, parent_expr, wrt='a')
                         if p_deriv_val is not None and c_val is not None:
                             matches.append(abs(p_deriv_val - c_val))
 
-                    # Success if ANY match works
                     if not matches:
-                        print(f"    [Warning] Oracle evaluation failed for this branch.")
+                        print(f"    [Warning] Oracle evaluation failed.")
                         if prob < 0.7: continue
                     else:
                         best_diff = min(matches)
-                        # Relaxed check for complex derivations
                         if best_diff > 1e-3:
-                            print(f"    [Invalid] Numerical mismatch (Best Diff: {best_diff})")
+                            print(f"    [Invalid] Numerical mismatch ({best_diff})")
                             continue
- 
+  
                 except Exception as e:
-                    print(f"    [Error] Exception during validation: {e}")
+                    print(f"    [Error] Validation exception: {e}")
                     continue
 
                 new_node = {
@@ -185,34 +190,41 @@ class ResearchOrchestrator:
                     "path": current['path'] + [step]
                 }
                 
-                # Terminal Check
                 if step.get('is_terminal'):
                     print(f"    [Terminal] Target reached. Verifying final result...")
                     oracle_val = self.oracle.evaluate_ground_truth(self.problem)
-                    # We don't pass oracle_val as a point sampler for the FINAL result comparison
+                    oracle_limit = self.oracle.evaluate_asymptotic_limit(self.problem, child_expr)
+                    
                     implementation = self.coder.generate_implementation(self.problem, step)
                     
                     script_path = f"eval_terminal_{iteration_count}.py"
                     with open(script_path, "w", encoding='utf-8') as f:
                         f.write(implementation.get("python_script", ""))
                     
-                    verification_result = self.verifier.verify(script_path, oracle_val)
+                    verification_result = self.verifier.verify(script_path, oracle_val, oracle_limit=oracle_limit)
                     if verification_result.get("status") == "SUCCESS":
                         print(f"    [SUCCESS] Solution Verified!")
                         self.finalize(step, new_node['path'])
                         return
                     else:
-                        critique = verification_result.get("verdict") or verification_result.get("critique") or "Unknown error"
+                        verdict = verification_result.get("verdict") or "Unknown error"
                         res = verification_result.get("residual", "N/A")
-                        print(f"    [Pruned] Terminal verification failed. Residual: {res}. Critique: {critique}")
+                        print(f"    [Pruned] Failed. Residual: {res}. Verdict: {verdict}")
+                        
+                        # Principle 4: Store Distilled Verdict
+                        self.failed_verdicts.append(f"[Mathematica Verdict: {action} failed at depth {depth}. Residual: {res}. {verdict[:100]}]")
+                        
+                        # Principle 3: Permanent Banning of Type B strategies
+                        if "Type B" in verdict:
+                            print(f"    [Banned] Strategy '{action}' added to banned list due to Type B error.")
+                            self.banned_strategies.add(action)
                 else:
                     # Generic Node: Push to Queue
-                    # Priority is boosted by success_probability and penalized by depth
-                    priority = prob * (0.9 ** depth)
+                    # Principle A: Priority uses (prob * 0.7 + (simplicity/10) * 0.3) and depth penalty
+                    priority = (prob * 0.7 + (simplicity / 10.0) * 0.3) * (0.85 ** depth)
                     heapq.heappush(self.queue, (-priority, depth + 1, self.counter, new_node))
                     self.counter += 1
                     
-                    # Log successful steps to tree_log for global visibility
                     step_id = len(self.tree_log) + 1
                     self.tree_log[f"Checkpoint_{step_id}"] = {
                         "from": current['expression'],
@@ -220,16 +232,16 @@ class ResearchOrchestrator:
                         "action": action,
                         "logic": step.get('logic'),
                         "latex": step.get('intermediate_expression'),
-                        "prob": prob
+                        "prob": prob,
+                        "simplicity": simplicity
                     }
                     self._save_tree_log()
 
-        print("\n[Halt] Search space exhausted or max iterations reached.")
+        print("\n[Halt] Search exhaustion.")
         self.reporter.generate_report(self.problem, self.tree_log, "thinking_process.txt", language=self.report_language)
 
     def finalize(self, result, full_path):
         print("\n--- Compiling Final Scientific Report ---")
-        # Synthesize the full path for the reporter
         self.reporter.generate_report(self.problem, self.tree_log, "thinking_process.txt", final_solution=result, language=self.report_language)
 
 if __name__ == "__main__":

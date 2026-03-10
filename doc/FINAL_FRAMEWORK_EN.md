@@ -322,7 +322,27 @@ The fundamental principle of this system can be stated as: **The LLM is never tr
 
 This separation creates a system that inherits the **creativity** of neural networks (exploring substitutions, recognizing integral identities) while maintaining the **rigor** of symbolic computation (every step is numerically verified to $10^{-3}$ tolerance, and the final answer to $10^{-10}$).
 
+### Design Features Summary
+
+| Feature | Implementation | Benefit |
+| :--- | :--- | :--- |
+| **Atomic Transformation** | Theorist Output Constraints | Prevents LLM "hallucination jumps" |
+| **Point Sampling** | Coder Early Exit | Saves API tokens and time by failing fast |
+| **Calculus Matching** | Oracle Derivative Check | Correctly verifies $\int$ and $\frac{d}{da}$ operations |
+| **Simplicity Score** | Priority Weight Adjustment | Favors elegant paths, penalizes term-heavy branches |
+| **Context Distillation** | Failed Path Compression | Reduces token cost and context-window noise |
+| **Asymptotic Breaker** | Physics Limit (a→0) Check | Intercepts invalid forms before full verification |
+| **State Persistence** | tree_log.json | Resilience against infrastructure failure |
+
 ### The Trust Hierarchy
+
+```
+Highest Trust: Numerical Oracle (mpmath, 100 dps)
+      ↓
+Medium Trust: Orchestrator Logic (Deterministic Python)
+      ↓
+Lowest Trust: LLM Agents (Theorist, Coder, Verifier, Reporter)
+```
 
 ```
 Highest Trust: Numerical Oracle (mpmath, 100 dps)

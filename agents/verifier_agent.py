@@ -34,25 +34,44 @@ class VerifierAgent:
             "   - 'insight' (string explaining the error, e.g., 'Integration diverges at t=1, try parameter substitution.')"
         )
 
-    def verify(self, script_path, oracle_val):
-        print(f"[Verifier] Running execution sandbox and comparing with Oracle...")
+    def verify(self, script_path, oracle_val, oracle_limit=None):
+        print(f"[Verifier] Running execution sandbox and comparing with Oracle (Double-Blind)...")
         
         try:
             result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, check=True)
             output = result.stdout.strip()
-            # Try to find the last numerical value in the output
-            lines = output.splitlines()
-            candidate_val = None
-            for line in reversed(lines):
+            
+            # Extract all numerical values from the output
+            vals = []
+            for line in output.splitlines():
                 try:
-                    candidate_val = mp.mpf(line.strip())
-                    break
+                    # Look for things that look like numbers
+                    num = mp.mpf(line.strip())
+                    vals.append(num)
                 except:
                     continue
             
-            if candidate_val is None:
-                return {"status": "FAIL", "critique": f"Could not find a numerical result in script output: {output}"}
+            if not vals:
+                return {"status": "FAIL", "critique": f"Could not find any numerical results in script output: {output}"}
             
+            # If oracle_limit is provided, we expect at least two values: [limit, result]
+            # or the script might print limit first then result.
+            # We'll assume the LAST value is the result, and if there are others, one of them is the limit.
+            candidate_val = vals[-1]
+            
+            if oracle_limit is not None and len(vals) > 1:
+                # Check the first numeric value as the limit
+                candidate_limit = vals[0]
+                limit_residual = abs(candidate_limit - oracle_limit)
+                if limit_residual > 1e-3: # Asymptotic check is usually less strict but essential
+                    return {
+                        "status": "FAIL", 
+                        "verdict": f"Branch Failed. Asymptotic Check mismatch. Oracle Limit: {oracle_limit}, Candidate Limit: {candidate_limit}",
+                        "prune_branch": True,
+                        "residual": float(limit_residual)
+                    }
+                print(f"[Verifier] Asymptotic Check PASSED (Residual: {limit_residual})")
+
             residual = abs(candidate_val - oracle_val)
             
             if residual < self.tolerance:

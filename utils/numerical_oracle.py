@@ -255,6 +255,31 @@ class NumericalOracle:
             print(f"[Oracle] Derivative error: {e}")
             return 0
 
+    def evaluate_asymptotic_limit(self, problem, expression_str, wrt='a', limit_type='zero'):
+        """
+        Evaluates the limit of the expression as wrt approaches zero or infinity.
+        """
+        try:
+            if limit_type == 'zero':
+                val = 1e-12
+            else:
+                val = 1e12
+                
+            temp_problem = problem.copy()
+            params = []
+            for p in problem.get('parameters', []):
+                if p.startswith(f"{wrt}="):
+                    params.append(f"{wrt}={val}")
+                else:
+                    params.append(p)
+            temp_problem['parameters'] = params
+            
+            res = self.evaluate_full_expression(temp_problem, expression_str)
+            return res
+        except Exception as e:
+            print(f"[Oracle] Asymptotic error: {e}")
+            return None
+
 def get_oracle():
     return NumericalOracle()
 

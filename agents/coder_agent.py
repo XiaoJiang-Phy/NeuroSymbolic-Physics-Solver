@@ -33,15 +33,14 @@ class CoderAgent:
             "unless necessary, and ensure the last line is a pure number."
         )
 
-    def generate_implementation(self, problem_definition, symbolic_ir, oracle_point_val=None):
+    def generate_implementation(self, problem_definition, symbolic_ir):
         if not self.api_key:
             return {"error": "DeepSeek API Key not found."}
 
         print(f"[Coder] Generating Python implementation...")
         
         prompt = f"{self.system_prompt}\n\nProblem Definition: {json.dumps(problem_definition)}\n\nTheorist's IR: {json.dumps(symbolic_ir)}"
-        if oracle_point_val is not None:
-            prompt += f"\n\nOracle value at integration variable = 0.999 is {oracle_point_val}. Please insert the point sampling early exit check."
+        prompt += "\n\nMandatory Requirement: Your 'python_script' MUST include a function `asymptotic_check(parameter_name)` that calculates the limit of your analytical expression as the primary parameter (usually 'a') approaches 0 or infinity (specify which one makes sense for the physics of the problem). The script MUST print the result of this limit evaluation. The Verifier will handle the comparison."
         
         response_stream = self.client.chat.completions.create(
             model="deepseek-chat",
