@@ -1,7 +1,9 @@
 import os
+import sys
 from openai import OpenAI
 import json
 from dotenv import load_dotenv
+from utils.logger import log_thinking
 
 load_dotenv()
 
@@ -12,27 +14,35 @@ class TheoristAgent:
     Role: Symbolic & Mathematical Reasoning
     """
     def __init__(self):
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
         self.api_key = os.getenv("DEEPSEEK_API_KEY")
         self.base_url = "https://api.deepseek.com" # Default DeepSeek API URL
         if self.api_key:
             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         
         self.system_prompt = (
-            "You are a rigorous theoretical physicist performing an ATOMIC symbolic derivation step-by-step.\n"
-            "Your goal is to SIMPLIFY an integral or TRANSFORM it into a known form. Do NOT solve it in one go.\n"
+            "You are a rigorous theoretical physicist specializing in Condensed Matter Physics (CMP) and Quantum Field Theory (QFT).\n"
+            "Your goal is to perform an ATOMIC symbolic derivation step-by-step for a physical system (e.g., Many-body Hamiltonians, Green's Functions, Topological Invariants).\n"
+            "CMP CAPABILITIES (NEW):\n"
+            "1. OPERATOR ALGEBRA: You can perform steps involving creation/annihilation operators (c_k, c_k^dagger), commutators [A, B], and anti-commutators {A, B}.\n"
+            "2. LATTICE TRANSFORMATIONS: You can perform Fourier transforms from real-space lattice sites to k-space Brillouin zones (e.g., H = -t sum c_i^dagger c_j -> eps(k) = -2t cos(ka)).\n"
+            "3. GREEN'S FUNCTIONS: You can derive Spectral Functions A(k, omega) from Green's Functions G(k, omega) = 1/(omega - eps(k) + i*eta) using analytic continuation (e.g., Im[G]).\n"
+            "4. DENSITY OF STATES (DOS): You can derive DOS by integrating the spectral function over the Brillouin zone: D(omega) = int A(k, omega) dk / 2pi.\n"
             "CRITICAL RULES:\n"
-            "1. ATOMIC STEPS: Each proposal must represent EXACTLY ONE mathematical operation (e.g., Variable Substitution, Partial Fraction Decomposition, Differentiation under the Integral Sign).\n"
-            "2. STATE TRACKING: Always output the NEW mathematical form resulting from your transformation. The new state MUST be mathematically equivalent to the previous state.\n"
-            "3. CLEAN SYMPY CODE: The 'sympy_code' field must contain ONLY the mathematical expression, NOT an assignment (like 'f(x, a) = ...'). If the step is an equation transformation, use 'Eq(lhs, rhs)'.\n"
+            "1. ATOMIC STEPS: Each proposal must represent EXACTLY ONE mathematical or physical transformation (e.g., 'Fourier_Transform', 'Analytic_Continuation', 'Integration_over_BZ').\n"
+            "2. STATE TRACKING: Always output the NEW mathematical form resulting from your transformation. The new state MUST be mathematically equivalent (or correctly derived) from the previous state.\n"
+            "3. CLEAN SYMPY CODE: The 'sympy_code' field must contain ONLY the mathematical expression. For operators, use `Symbol` with naming conventions like `c_dagger_k`, `c_k`. For i*eta, use `I*eta` where eta is small.\n"
             "4. MULTI-PATH EXPLORATION: Propose exactly 3 DIFFERENT next-step actions to explore the reasoning tree.\n"
-            "5. OUTPUT FORMAT: Output a JSON ARRAY of 3 objects. Each object must contain:\n"
-            "   - 'action_type': The transformation applied (e.g., 'Substitution', 'Integration_by_Parts').\n"
-            "   - 'logic': Detailed mathematical reasoning for why this step is VALID and why it simplifies the problem.\n"
-            "   - 'intermediate_expression': The LaTeX string of the NEW expression after the step.\n"
+            "5. PHYSICS AUDIT: Ensure every step satisfies causality (Im[G] >= 0) and conservation laws. If a step leads to a non-physical state, discard it.\n"
+            "6. OUTPUT FORMAT: Output a JSON ARRAY of 3 objects. Each object must contain:\n"
+            "   - 'action_type': The transformation applied.\n"
+            "   - 'logic': Detailed physical reasoning for why this step is VALID and why it leads closer to the target (e.g., DOS).\n"
+            "   - 'intermediate_expression': The LaTeX string of the NEW expression.\n"
             "   - 'sympy_code': The NEW mathematical expression as a pure SymPy string.\n"
-            "   - 'is_terminal': Boolean, True if this step leads directly to a known standard integral or a final closed-form solution.\n"
-            "   - 'success_probability': Confidence that this step is on the optimal path (0.0 to 1.0).\n"
-            "   - 'simplicity_score': Rank 1 to 10 how ELEGANT and SIMPLE the resulting expression is (10 = extremely clean identity, 1 = extremely cluttered series). Prioritize paths with fewest terms and least reliance on complex special functions. If complexity increases linearly with depth, penalize immediately."
+            "   - 'is_terminal': Boolean, True if this step results in the final target quantity (e.g., DOS expression).\n"
+            "   - 'success_probability': Confidence (0.0 to 1.0).\n"
+            "   - 'simplicity_score': Rank 1 to 10."
         )
 
     def solve(self, problem_definition, context=None):
@@ -63,26 +73,23 @@ class TheoristAgent:
         full_content = ""
         reasoning_content = ""
         
-        reasoning_log = "thinking_process.txt"
-        print(f"\n--- [Theorist Thinking] (Redirected to {reasoning_log}) ---")
+        print(f"\n--- [Theorist Thinking] (Redirected to thinking_process.txt) ---")
         
-        with open(reasoning_log, "a", encoding='utf-8') as log_f:
-            log_f.write(f"\n\n--- Iteration Strategy Start ---\n")
-            for chunk in response_stream:
-                delta = chunk.choices[0].delta
-                
-                # Write reasoning to file
-                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                    log_f.write(delta.reasoning_content)
-                    log_f.flush()
-                    reasoning_content += delta.reasoning_content
-                
-                # Print final instructions (JSON) to terminal for orchestration visibility
-                if delta.content:
-                    if not full_content:
-                        print("\n--- [Theorist Final Strategy JSON] ---")
-                    print(delta.content, end="", flush=True)
-                    full_content += delta.content
+        log_thinking(f"\n\n--- Iteration Strategy Start ---\n")
+        for chunk in response_stream:
+            delta = chunk.choices[0].delta
+            
+            # Write reasoning to file
+            if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                log_thinking(delta.reasoning_content)
+                reasoning_content += delta.reasoning_content
+            
+            # Print final instructions (JSON) to terminal for orchestration visibility
+            if delta.content:
+                if not full_content:
+                    print("\n--- [Theorist Final Strategy JSON] ---")
+                print(delta.content, end="", flush=True)
+                full_content += delta.content
         print("\n")
         
         import re

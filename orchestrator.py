@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 # Load API keys from .env file
 load_dotenv()
 
+import sys
 from agents.theorist_agent import TheoristAgent
 from agents.coder_agent import CoderAgent
 from agents.verifier_agent import VerifierAgent
@@ -13,6 +14,8 @@ from utils.numerical_oracle import get_oracle
 
 class ResearchOrchestrator:
     def __init__(self, problem_definition, report_language="English"):
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8')
         self.problem = problem_definition
         self.theorist = TheoristAgent()
         self.coder = CoderAgent()
@@ -246,12 +249,13 @@ class ResearchOrchestrator:
 
 if __name__ == "__main__":
     problem = {
-            "name": "Parametric Sinusoidal Decay Integral",
-            "integrand": "sin(a*x) / (x * (x**2 + 1))",
-            "bounds": "[0, oo]",
-            "parameters": ["a=1", "a=2", "a=5"],
-            "target": "Find the general closed-form solution as a function of parameter 'a' (a > 0).",
-            "hint": "Consider partial fraction decomposition: 1/(x(x^2+1)) = 1/x - x/(x^2+1), or differentiation under the integral sign with respect to 'a'."
+            "name": "1D Tight-Binding DOS Derivation",
+            "hamiltonian": "H = -t * Sum(c_dagger_i * c_j, (i, j)) (Nearest-Neighbor)",
+            "integrand": "1 / (2*pi) * Integral(SpectralFunction(k, omega), (k, -pi, pi))",
+            "bounds": "[-pi, pi]",
+            "parameters": ["t=1.0", "eta=0.01"],
+            "target": "Find the general analytic expression for the Density of States D(omega).",
+            "hint": "1. Fourier transform sites {i, j} to k-space. 2. eps(k) = -2t cos(ka). 3. G = 1/(omega - eps(k) + I*eta). 4. D(omega) = -1/pi * Im[Integral G dk]."
     }
     orchestrator = ResearchOrchestrator(problem, report_language="Chinese")
     orchestrator.run()

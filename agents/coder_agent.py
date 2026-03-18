@@ -1,7 +1,8 @@
 import os
-from openai import OpenAI
 import json
+from openai import OpenAI
 from dotenv import load_dotenv
+from utils.logger import log_thinking
 
 load_dotenv()
 
@@ -22,6 +23,10 @@ class CoderAgent:
             "'The Theorist's' mathematical strategies into executable Python code.\n"
             "- Python Implementation: Use `sympy` for symbolic manipulation and `mpmath` for "
             "50-dps high-precision numerical evaluation.\n"
+            "- High-Precision Rules: You MUST use `mpmath` for numerical evaluations. "
+            "When converting a SymPy expression to a numerical value, use `sp.N(expr, 50)` "
+            "instead of `str(expr)` or `float()` to ensure it can be parsed correctly by mpmath and retains precision. "
+            "Ensure that all evaluations use at least 50 dps (mp.mp.dps = 50).\n"
             "- Strict Rule (Python Plotting): For all data visualization and residual plots, you must "
             "strictly set the matplotlib global font family to Arial (sans-serif) using "
             "plt.rcParams['font.sans-serif'] = ['Arial'].\n"
@@ -49,17 +54,13 @@ class CoderAgent:
         )
         
         full_content = ""
-        reasoning_log = "thinking_process.txt"
-        print(f"\n--- [Coder Generating] (Redirected to {reasoning_log}) ---")
+        log_thinking(f"\n\n--- Coder Implementation Start ---\n")
         
-        with open(reasoning_log, "a", encoding='utf-8') as log_f:
-            log_f.write(f"\n\n--- Coder Implementation Start ---\n")
-            for chunk in response_stream:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    log_f.write(delta.content)
-                    log_f.flush()
-                    full_content += delta.content
+        for chunk in response_stream:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                log_thinking(delta.content)
+                full_content += delta.content
         print("[Coder] Implementation generated.\n")
         
         import re
