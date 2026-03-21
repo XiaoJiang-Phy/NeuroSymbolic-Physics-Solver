@@ -25,6 +25,8 @@ condaenv.*.requirements.txt
 .idea/
 *.swp
 *.swo
+doc/
+roadmap.md
 
 # OS
 .DS_Store
