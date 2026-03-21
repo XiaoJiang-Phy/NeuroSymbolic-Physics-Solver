@@ -88,18 +88,15 @@ class VerifierAgent:
                     stream=True
                 )
                 
-                reasoning_log = "thinking_process.txt"
-                print(f"--- [Verifier Critique] (Redirected to {reasoning_log}) ---")
-                
                 full_critique = ""
-                with open(reasoning_log, "a", encoding='utf-8') as log_f:
-                    log_f.write(f"\n\n--- Verifier Critique Start ---\n")
-                    for chunk in response_stream:
-                        delta = chunk.choices[0].delta
-                        if delta.content:
-                            log_f.write(delta.content)
-                            log_f.flush()
-                            full_critique += delta.content
+                from utils.logger import log_thinking
+                log_thinking(f"\n\n--- Verifier Critique Start ---\n")
+                
+                for chunk in response_stream:
+                    delta = chunk.choices[0].delta
+                    if delta.content:
+                        log_thinking(delta.content)
+                        full_critique += delta.content
                 print("[Verifier] Critique generated.\n")
                 
                 import re

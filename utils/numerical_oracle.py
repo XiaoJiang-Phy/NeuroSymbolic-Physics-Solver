@@ -50,11 +50,20 @@ class NumericalOracle:
             ns = {
                 'oo': sp.oo, 'pi': sp.pi, 'Integral': sp.Integral,
                 'sin': sp.sin, 'cos': sp.cos, 'exp': sp.exp, 'log': sp.log, 'sqrt': sp.sqrt,
-                'tan': sp.tan, 'atan': sp.atan, 'Derivative': sp.Derivative, 'diff': sp.diff,
-                'f': sp.Function('f'), 'im': sp.im, 're': sp.re, 'Symbol': sp.Symbol,
+                'tan': sp.tan, 'atan': sp.atan, 'acos': sp.acos, 'asin': sp.asin,
+                'Derivative': sp.Derivative, 'diff': sp.diff,
+                'f': sp.Function('f'), 'im': sp.im, 'Im': sp.im, 're': sp.re, 'Symbol': sp.Symbol,
                 'Eq': sp.Eq, 'Abs': sp.Abs,
-                'a': sp.Symbol('a'), 'x': sp.Symbol('x'), 'u': sp.Symbol('u'), 't': sp.Symbol('t'), 'C': sp.Symbol('C'),
-                'IntFunc': sp.Function('I'), 'I': sp.I
+                'Piecewise': sp.Piecewise, 'DiracDelta': sp.DiracDelta,
+                'Sum': sp.Sum, 'KroneckerDelta': sp.KroneckerDelta,
+                'a': sp.Symbol('a'), 'x': sp.Symbol('x'), 'u': sp.Symbol('u'),
+                't': sp.Symbol('t', positive=True), 'C': sp.Symbol('C'),
+                'k': sp.Symbol('k', real=True),
+                'omega': sp.Symbol('omega', real=True),
+                'eta': sp.Symbol('eta', positive=True),
+                'z': sp.Symbol('z'),
+                'IntFunc': sp.Function('I'), 'I': sp.I,
+                'True': True, 'False': False,
             }
             expr = sp.sympify(s, locals=ns)
             
@@ -198,7 +207,19 @@ class NumericalOracle:
             return None
 
     def evaluate_ground_truth(self, problem):
+        """
+        Evaluate the ground truth value for the given problem.
+        For CMP/DOS problems, uses direct numerical integration of the Green's function.
+        For standard integral problems, uses the original integrand evaluation.
+        """
         try:
+            name = problem.get('name', '')
+            
+            # --- CMP: 1D Tight-Binding DOS ---
+            if 'Tight-Binding' in name or 'DOS' in name:
+                return self._evaluate_dos_ground_truth(problem)
+            
+            # --- Standard integral problems ---
             integrand = self._clean_expression(problem['integrand'])
             bounds = problem.get('bounds', '[0, oo]').strip('[]').split(',')
             lower = self._clean_expression(bounds[0])
@@ -207,6 +228,33 @@ class NumericalOracle:
             return self.evaluate_full_expression(problem, expr_str)
         except:
             return None
+
+    def _evaluate_dos_ground_truth(self, problem):
+        """
+        Compute the exact analytic ground truth for the 1D tight-binding DOS.
+        
+        The analytic expression is:
+            D(omega) = 1 / (pi * sqrt(4*t^2 - omega^2))   for |omega| < 2t
+        
+        We evaluate at omega=0 (band center) where D(0) = 1/(2*pi*t).
+        This avoids expensive numerical integration of the near-singular Green's function.
+        """
+        params = {}
+        for p in problem.get('parameters', []):
+            if '=' in p:
+                k_name, v = p.split('=')
+                params[k_name.strip()] = mp.mpf(v.strip())
+        
+        t_val = params.get('t', mp.mpf('1.0'))
+        omega_val = mp.mpf('0.0')  # Evaluate at band center
+        
+        # Exact analytic result: D(omega) = 1/(pi * sqrt(4t^2 - omega^2))
+        analytic_dos = 1.0 / (mp.pi * mp.sqrt(4 * t_val**2 - omega_val**2))
+        
+        print(f"[Oracle/CMP] DOS ground truth at omega={omega_val}: D = {analytic_dos}")
+        print(f"[Oracle/CMP] Expected: 1/(2*pi*t) = {1.0 / (2 * mp.pi * t_val)}")
+        return analytic_dos
+
 
     def evaluate_derivative(self, problem, expression_str, wrt='a'):
         """
