@@ -1,5 +1,11 @@
 # NeuroSymbolic-Physics-Solver
 
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-blue.svg" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/Status-Experimental%20Prototype-orange.svg" alt="Experimental Prototype">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License MIT">
+</p>
+
 A multi-agent, stateful tree-based orchestration system designed to solve complex physics and mathematics problems (integrals, ODEs, etc.) using a combination of **Deep-Reasoning Symbolic Symbolic Intelligence** and **High-Precision Numerical Verification**.
 
 ## 🚀 Recent Solution Success
