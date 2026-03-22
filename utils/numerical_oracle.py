@@ -64,6 +64,17 @@ class NumericalOracle:
                 'z': sp.Symbol('z'),
                 'IntFunc': sp.Function('I'), 'I': sp.I,
                 'True': True, 'False': False,
+                # Unit Engineering & Constants
+                'hbar': sp.Symbol('hbar', positive=True),
+                'k_B': sp.Symbol('k_B', positive=True),
+                'e': sp.Symbol('e', positive=True),
+                'm_e': sp.Symbol('m_e', positive=True),
+                # Commutator Algebra and Matrix Mechanics
+                'Commutator': sp.physics.quantum.Commutator,
+                'AntiCommutator': sp.physics.quantum.AntiCommutator,
+                'Dagger': sp.physics.quantum.Dagger,
+                'Operator': sp.physics.quantum.Operator,
+                'Matrix': sp.Matrix,
             }
             expr = sp.sympify(s, locals=ns)
             

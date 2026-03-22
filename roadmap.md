@@ -7,13 +7,13 @@
 ## 📅 阶段 1：算符与矩阵代数核心 (Symbolic Physics Core)
 **目标**：使系统具备处理量子力学基本算符和矩阵变换的能力。
 
-*   **1.1 [ ] 算符代数引擎 (Commutator Algebra)**
+*   **1.1 [x] 算符代数引擎 (Commutator Algebra)**
     *   支持对易子 $[A, B]$ 和反对易子 $\{A, B\}$ 的化简。
     *   引入符号化的二次量子化算符（费米子/玻色子 $c_k, c_k^\dagger$）。
-*   **1.2 [ ] 矩阵力学与有效模型**
+*   **1.2 [x] 矩阵力学与有效模型**
     *   支持 Pauli 矩阵、Spinor 基底的符号变换。
     *   实现有效哈密顿量的低能级差变换（如 Schrieffer-Wolff 变换）的原子步化推导。
-*   **1.3 [ ] 物理单位感知 (Unit Engineering)**
+*   **1.3 [x] 物理单位感知 (Unit Engineering)**
     *   在推导中强制保留物理常数（$\hbar, k_B, e, m_e$）。
     *   集成 `unit_eng` 技能进行自动量纲分析。
 
