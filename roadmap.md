@@ -22,14 +22,14 @@
 ## 📅 阶段 2：物理一致性审计 (Physics Audit & Constraints)
 **目标**：建立“物理红线”检查机制，确保推导结果在物理上是自洽的。
 
-*   **2.1 [ ] 守恒律审计 (Conservation Laws)**
+*   **2.1 [x] 守恒律审计 (Conservation Laws)**
     *   检查每步变换是否满足电荷、能量、动量和粒子数守恒。
-*   **2.2 [ ] 性质正定性与解析性 (Analytic Properties)**
+*   **2.2 [x] 性质正定性与解析性 (Analytic Properties)**
     *   验证光谱函数 $A(\mathbf{k}, \omega)$ 的正定性。
     *   检查 Green 函数在复平面上的解析性（因果律约束 $i\eta$）。
-*   **2.3 [ ] 自动求和规则校验 (Sum Rules)**
+*   **2.3 [x] 自动求和规则校验 (Sum Rules)**
     *   利用 $f$-sum rule 等经典求和规则进行数值校验。
-*   **2.4 [ ] 物理决策日志 (Physics Audit Log)**
+*   **2.4 [x] 物理决策日志 (Physics Audit Log)**
     *   使用 `physics_audit` 记录每一步物理决策的逻辑背景。
 
 ---
@@ -37,12 +37,12 @@
 ## 📅 阶段 3：多体物理专项引擎 (Many-Body Physics Engines)
 **目标**：解决凝聚态物理中最具挑战性的有限温和强关联问题。
 
-*   **3.1 [ ] Matsubara 频率转换引擎**
+*   **3.1 [x] Matsubara 频率转换引擎**
     *   实现从离散 Matsubara 求和到连续频率轴解析延拓（Analytic Continuation）的推导。
-*   **3.2 [ ] 费曼图翻译器 (Diagrammatic Reasoning)**
+*   **3.2 [x] 费曼图翻译器 (Diagrammatic Reasoning)**
     *   将费曼图规则（Feynman Rules）转化为具体的符号积分。
     *   自动处理自能（Self-energy）和自洽 Gap 方程。
-*   **3.3 [ ] 重正化群 (RG) 算子**
+*   **3.3 [x] 重正化群 (RG) 算子**
     *   引入尺度变换规则，支持耦合常数流（Flow equations）的推导。
 
 ---

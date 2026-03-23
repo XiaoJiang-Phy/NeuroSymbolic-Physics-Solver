@@ -62,6 +62,8 @@ class NumericalOracle:
                 'omega': sp.Symbol('omega', real=True),
                 'eta': sp.Symbol('eta', positive=True),
                 'z': sp.Symbol('z'),
+                'omega_n': sp.Symbol('omega_n', real=True),
+                'beta': sp.Symbol('beta', real=True, positive=True),
                 'IntFunc': sp.Function('I'), 'I': sp.I,
                 'True': True, 'False': False,
                 # Unit Engineering & Constants
@@ -76,6 +78,12 @@ class NumericalOracle:
                 'Operator': sp.physics.quantum.Operator,
                 'Matrix': sp.Matrix,
             }
+            from utils.matsubara_engine import get_matsubara_engine
+            from utils.feynman_translator import get_feynman_translator
+            from utils.rg_operator import get_rg_operator
+            ns['matsubara_engine'] = get_matsubara_engine()
+            ns['feynman_translator'] = get_feynman_translator()
+            ns['rg_operator'] = get_rg_operator()
             expr = sp.sympify(s, locals=ns)
             
             if 'C' not in subs:

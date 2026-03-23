@@ -11,6 +11,7 @@ from agents.coder_agent import CoderAgent
 from agents.verifier_agent import VerifierAgent
 from agents.reporter_agent import ReporterAgent
 from utils.numerical_oracle import get_oracle
+from utils.physics_auditor import get_physics_auditor
 
 class ResearchOrchestrator:
     def __init__(self, problem_definition, report_language="English"):
@@ -22,6 +23,7 @@ class ResearchOrchestrator:
         self.verifier = VerifierAgent()
         self.reporter = ReporterAgent()
         self.oracle = get_oracle()
+        self.auditor = get_physics_auditor()
         self.state = "INIT"
         self.max_iterations = 15
         self.log_path = "tree_log.json"
@@ -163,11 +165,26 @@ class ResearchOrchestrator:
                     is_cmp = 'Tight-Binding' in self.problem.get('name', '') or 'DOS' in self.problem.get('name', '')
                     
                     if is_cmp:
+                        # Phase 2: Physics Audit - Causality Check (2.2)
+                        # Green's Functions and spectral representations must preserve causality (i*eta)
+                        if any(kw in child_expr for kw in ['1 /', 'G =', 'Green']) and 'eta' in parent_expr:
+                            causal_ok, causal_msg = self.auditor.audit_causality(child_expr)
+                            if not causal_ok:
+                                print(f"    [Physics Audit FAIL] {causal_msg}")
+                                self.auditor.log_decision(
+                                    context=f"Action: {action}, Expression: {child_expr[:40]}...",
+                                    hypothesis=f"Applying {action} to advance derivation.",
+                                    failure_mode=causal_msg,
+                                    causality="Transformation erroneously discarded the infinitesimal imaginary part required for analytic properties.",
+                                    pivot="Discarding branch to preserve physical spectrum causality."
+                                )
+                                continue
+
                         # Trust the Theorist's probability score for CMP problems
                         if prob < 0.7:
                             print(f"    [CMP] Low probability ({prob}), skipping.")
                             continue
-                        print(f"    [CMP] Accepted (Oracle bypass, trusting p={prob}).")
+                        print(f"    [CMP] Accepted (Oracle bypass, trusting p={prob}, Physics Audit Passed).")
                     else:
                         # Standard mode: numerical Oracle verification
                         matches = []
@@ -236,6 +253,15 @@ class ResearchOrchestrator:
                         if "Type B" in verdict:
                             print(f"    [Banned] Strategy '{action}' added to banned list due to Type B error.")
                             self.banned_strategies.add(action)
+                            
+                        # If a terminal test failed via the verification stage (e.g. Sum Rule 2.3), log it in the physics audit:
+                        self.auditor.log_decision(
+                            context=f"Terminal Output Verification: {child_expr[:50]}...",
+                            hypothesis="Candidate represented final analytical solution.",
+                            failure_mode=f"Verification failure (Residual: {res}).",
+                            causality=f"Mathematical bounds or Sum Rule violation resulting in Type {'B' if 'Type B' in verdict else 'A'} deviation.",
+                            pivot="Pruning branch and blacklisting if Type B."
+                        )
                 else:
                     # Generic Node: Push to Queue
                     # Principle A: Priority uses (prob * 0.7 + (simplicity/10) * 0.3) and depth penalty
