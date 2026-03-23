@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.theorist_agent import TheoristAgent
 from agents.coder_agent import CoderAgent
 from agents.verifier_agent import VerifierAgent
