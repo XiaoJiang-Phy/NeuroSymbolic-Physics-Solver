@@ -32,3 +32,17 @@
 - **Physics Rationale**: The normalization follows from the spectral weight sum rule, where the integral of the spectral function $A(k,\omega)$ over all energies is 1, and the momentum integral over the first Brillouin zone preserves this normalization.
 - **Status**: PASS
 
+
+### [Physics Audit Log] 2026-03-23 18:36:18
+- **[Context]**: BCS Gap Equation derivation: full pipeline demo
+- **[Hypothesis]**: Δ = V·∫ Δ/(2E_k)·tanh(βE_k/2) dk/(2π) is the correct gap equation
+- **[Failure Mode]**: None — all audits passed.
+- **[Causality]**: Retarded structure preserved; quasiparticle energy E_k > 0.
+- **[Pivot]**: No pivot needed. Derivation chain validated.
+---
+## Node: Prototype Task - 1D DOS Derivation & Verification
+- **Action**: Implemented the atomic derivation steps for the 1D tight-binding DOS and verified its full-bandwidth integral.
+- **Mathematical Validation**: The DOS $D(\omega) = 1 / (2\pi t \sqrt{1 - (\omega/2t)^2})$ integrates perfectly to $1$ over $\omega \in [-2t, 2t]$.
+- **Physics Rationale**: The normalization follows from the spectral weight sum rule, where the integral of the spectral function $A(k,\omega)$ over all energies is 1, and the momentum integral over the first Brillouin zone preserves this normalization.
+- **Status**: PASS
+
