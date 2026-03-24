@@ -104,6 +104,11 @@ class ResearchOrchestrator:
             self.engines[Engine.TOPOLOGY] = get_topology_engine()
             print(f"  [Engine] Topology Engine             ✓")
 
+        if Engine.TRANSPORT in self.profile.engines:
+            from utils.transport_engine import get_transport_engine
+            self.engines[Engine.TRANSPORT] = get_transport_engine()
+            print(f"  [Engine] Transport Engine            ✓")
+
         if not self.engines:
             print(f"  [Engine] No specialised engines needed (pure math mode).")
 

@@ -40,6 +40,7 @@ class Engine:
     FEYNMAN    = "feynman_translator"
     RG         = "rg_operator"
     TOPOLOGY   = "topology_engine"
+    TRANSPORT  = "transport_engine"
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +100,7 @@ _DOMAIN_TO_ENGINES = {
     Domain.RG:         [Engine.RG],
     Domain.GREEN_FUNC: [Engine.MATSUBARA],   # Often needs analytic continuation
     Domain.TOPOLOGY:   [Engine.TOPOLOGY],
+    Domain.TRANSPORT:  [Engine.TRANSPORT],
 }
 
 _CMP_DOMAINS = {
