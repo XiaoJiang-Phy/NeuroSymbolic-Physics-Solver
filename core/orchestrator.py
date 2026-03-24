@@ -99,6 +99,11 @@ class ResearchOrchestrator:
             self.engines[Engine.RG] = get_rg_operator()
             print(f"  [Engine] RG Operator                 ✓")
 
+        if Engine.TOPOLOGY in self.profile.engines:
+            from utils.topology_engine import get_topology_engine
+            self.engines[Engine.TOPOLOGY] = get_topology_engine()
+            print(f"  [Engine] Topology Engine             ✓")
+
         if not self.engines:
             print(f"  [Engine] No specialised engines needed (pure math mode).")
 

@@ -46,3 +46,9 @@
 - **Physics Rationale**: The normalization follows from the spectral weight sum rule, where the integral of the spectral function $A(k,\omega)$ over all energies is 1, and the momentum integral over the first Brillouin zone preserves this normalization.
 - **Status**: PASS
 
+## Node: Prototype Task - 1D DOS Derivation & Verification
+- **Action**: Implemented the atomic derivation steps for the 1D tight-binding DOS and verified its full-bandwidth integral.
+- **Mathematical Validation**: The DOS $D(\omega) = 1 / (2\pi t \sqrt{1 - (\omega/2t)^2})$ integrates perfectly to $1$ over $\omega \in [-2t, 2t]$.
+- **Physics Rationale**: The normalization follows from the spectral weight sum rule, where the integral of the spectral function $A(k,\omega)$ over all energies is 1, and the momentum integral over the first Brillouin zone preserves this normalization.
+- **Status**: PASS
+

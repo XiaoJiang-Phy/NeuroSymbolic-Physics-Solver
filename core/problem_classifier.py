@@ -39,6 +39,7 @@ class Engine:
     MATSUBARA  = "matsubara_engine"
     FEYNMAN    = "feynman_translator"
     RG         = "rg_operator"
+    TOPOLOGY   = "topology_engine"
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +98,7 @@ _DOMAIN_TO_ENGINES = {
     Domain.MANY_BODY:  [Engine.MATSUBARA, Engine.FEYNMAN],
     Domain.RG:         [Engine.RG],
     Domain.GREEN_FUNC: [Engine.MATSUBARA],   # Often needs analytic continuation
+    Domain.TOPOLOGY:   [Engine.TOPOLOGY],
 }
 
 _CMP_DOMAINS = {
