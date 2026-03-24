@@ -54,7 +54,7 @@
     *   实现从 $H(\mathbf{k})$ 到 Berry 曲率再到 Chern Number 的自动化积分管道。
 *   **4.2 [x] 线性响应与输运理论**
     *   自动派生电导、热导、Hall 系数等 Kubo 公式表达式。
-*   **4.3 [ ] 出版级物理制图 (Scientific Plotting)**
+*   **4.3 [x] 出版级物理制图 (Scientific Plotting)**
     *   集成 `sci_plot` 技能，输出符合 APS/Nature 标准的能带图、态密度图。
 
 ---

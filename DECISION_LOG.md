@@ -34,7 +34,11 @@
 
 ## [Phase 4] Transport Engine (Linear Response)
 - **Decision**: Implemented conductivity models via Kubo formalism (Drude / Anomalous Hall) using explicit integrands and SymPy's `DiracDelta` / `Heaviside` for $T=0$ limits.
-- **Reasoning**: This provides a unified analytical framework. The explicit inclusion of $T$ and $\mu$, along with symbolic velocity operators ($v = \hbar^{-1} \partial E/\partial k$), connects the purely symbolic engine to realistic experimental observables (like DC conductivity or Hall coefficient).### [Physics Audit Log] 2026-03-23 18:36:18
+- **Reasoning**: This provides a unified analytical framework. The explicit inclusion of $T$ and $\mu$, along with symbolic velocity operators ($v = \hbar^{-1} \partial E/\partial k$), connects the purely symbolic engine to realistic experimental observables (like DC conductivity or Hall coefficient).
+
+## [Phase 4] Publication-Quality Scientific Plotting
+- **Decision**: Created `PlotEngine` integrating APS/Nature `sci_plot` standards, strictly enforcing a fallback strategy for `text.usetex`. Local evaluations bypass raw Pyplot defaults to apply strict physical aesthetics (serif fonts, proper bounding boxes).
+- **Reasoning**: Generating valid formulas is useless without visual insight. Providing a dedicated plotter with physical scales and proper axis labeling standardizes solver outputs and aligns fully with expected condensed matter journal styles.### [Physics Audit Log] 2026-03-23 18:36:18
 - **[Context]**: BCS Gap Equation derivation: full pipeline demo
 - **[Hypothesis]**: Δ = V·∫ Δ/(2E_k)·tanh(βE_k/2) dk/(2π) is the correct gap equation
 - **[Failure Mode]**: None — all audits passed.
