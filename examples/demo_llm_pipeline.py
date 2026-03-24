@@ -80,6 +80,23 @@ PROBLEMS = {
             "4. Obtain self-consistent gap equation."
         ),
     },
+    "weyl": {
+        "name": "Anomalous Hall Conductivity of 2D Massive Dirac Fermion",
+        "hamiltonian": (
+            "H = v * kx * sigma_x + v * ky * sigma_y + m * sigma_z"
+        ),
+        "target": (
+            "Derive the zero-temperature anomalous Hall conductivity sigma_xy. "
+            "You MUST use the TopologyEngine to compute the Berry curvature Omega_z "
+            "for the lowest energy band (n=0), then integrate it over the 2D plane from -oo to oo."
+        ),
+        "hint": (
+            "1. Activate 'topology_engine' and 'transport_engine'. "
+            "2. Compute Omega_z(kx, ky) for the lowest energy band. "
+            "3. Integrate Omega_z over dkx dky from -oo to oo (or use polar coordinates k, theta). "
+            "4. Prove that sigma_xy evaluates to a topological invariant proportional to sgn(m)."
+        ),
+    },
 }
 
 
@@ -135,7 +152,7 @@ def main():
     print("    📝 Reporter  (DeepSeek-V3)  — scientific report writing")
     print()
     print("─"*60)
-    input("  Press Enter to start the LLM-powered solver...\n")
+    # input("  Press Enter to start the LLM-powered solver...\n")
 
     # ── Launch ───────────────────────────────────────────────────
     orch = ResearchOrchestrator(problem, report_language=args.lang)
