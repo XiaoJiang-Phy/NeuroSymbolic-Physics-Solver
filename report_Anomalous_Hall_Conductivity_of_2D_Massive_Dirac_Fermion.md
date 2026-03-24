@@ -138,7 +138,7 @@ $$
 graph TD
     Start["问题定义: 推导 σ_xy for H = v(kxσx+kyσy)+mσz"] --> H
 
-    subgraph “阶段一: 基础构建”
+    subgraph phase_one [阶段一: 基础构建]
         H["构建哈密顿量矩阵 H"] --> E["计算本征值 E± = ±√(v²k²+m²)"]
         H --> d_vec["定义 d-矢量: d = (v kx, v ky, m)"]
         H --> dH["计算导数 ∂H/∂kx, ∂H/∂ky"]
@@ -151,9 +151,13 @@ graph TD
     d_deriv --> cross["计算叉积 ∂kx d × ∂ky d = (0,0,v²)"]
     d_vec --> norm_d["计算模长 |d| = √(v²k²+m²)"]
     cross --> triple["计算三重积 d·(∂kx d × ∂ky d) = m v²"]
-    triple & norm_d --> Omega_d["应用公式: Ω_z = (1/2) * 三重积 / |d|³"]
+    
+    triple --> Omega_d["应用公式: Ω_z = (1/2) * 三重积 / |d|³"]
+    norm_d --> Omega_d
 
-    dH & psi --> Kubo["应用 Kubo 公式计算 Ω_z"]
+    dH --> Kubo["应用 Kubo 公式计算 Ω_z"]
+    psi --> Kubo
+
     psi --> A["计算贝里联络 A_x, A_y"]
     A --> Omega_curl["计算 Ω_z = ∂kx A_y - ∂ky A_x"]
 
