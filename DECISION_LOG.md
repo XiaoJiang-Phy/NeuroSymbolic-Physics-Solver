@@ -63,3 +63,68 @@
 - **Physics Rationale**: The normalization follows from the spectral weight sum rule, where the integral of the spectral function $A(k,\omega)$ over all energies is 1, and the momentum integral over the first Brillouin zone preserves this normalization.
 - **Status**: PASS
 
+
+### [Physics Audit Log] 2026-03-24 16:56:34
+- **[Context]**: Terminal: import sympy as sp
+k, v, m = sp.symbols('k v m', r…
+- **[Hypothesis]**: Candidate = final solution.
+- **[Failure Mode]**: Residual=N/A
+- **[Causality]**: Math/Sum‑Rule violation.
+- **[Pivot]**: Prune & ban if Type B.
+---
+
+### [Physics Audit Log] 2026-03-24 20:43:39
+- **[Context]**: Terminal: from sympy import symbols, integrate, pi, oo, Rati…
+- **[Hypothesis]**: Candidate = final solution.
+- **[Failure Mode]**: Residual=N/A
+- **[Causality]**: Math/Sum‑Rule violation.
+- **[Pivot]**: Prune & ban if Type B.
+---
+
+### [Physics Audit Log] 2026-03-26 11:14:52
+- **[Context]**: Graphene Universal Optical Conductivity Evaluation
+- **[Hypothesis]**: sigma_xx = e^2 / (4 hbar) is standard and strictly positive.
+- **[Failure Mode]**: None - universal constant.
+- **[Causality]**: Retarded response delta function positive.
+- **[Pivot]**: No pivot.
+---
+
+### [Physics Audit Log] 2026-03-26 11:17:56
+- **[Context]**: Graphene Universal Optical Conductivity Evaluation
+- **[Hypothesis]**: sigma_xx = e^2 / (4 hbar) is standard and strictly positive.
+- **[Failure Mode]**: None - universal constant.
+- **[Causality]**: Retarded response delta function positive.
+- **[Pivot]**: No pivot.
+---
+
+### [Physics Audit Log] 2026-03-26 11:36:56
+- **[Context]**: Graphene Universal Optical Conductivity Evaluation
+- **[Hypothesis]**: sigma_xx = e^2 / (4 hbar) is standard and strictly positive.
+- **[Failure Mode]**: None - universal constant.
+- **[Causality]**: Retarded response delta function positive.
+- **[Pivot]**: No pivot.
+---
+
+### [Physics Audit Log] 2026-03-26 11:43:49
+- **[Context]**: Graphene Universal Optical Conductivity Evaluation
+- **[Hypothesis]**: sigma_xx = e^2 / (4 hbar) is standard and strictly positive.
+- **[Failure Mode]**: None - universal constant.
+- **[Causality]**: Retarded response delta function positive.
+- **[Pivot]**: No pivot.
+---
+
+### [Physics Audit Log] 2026-03-26 13:11:28
+- **[Context]**: Altermagnetic AHC numerical integration
+- **[Hypothesis]**: σ_xy(μ) peaks at μ≈-0.152 with magnitude 0.0000 e²/h
+- **[Failure Mode]**: None — numerical integration consistent with analytical predictions
+- **[Causality]**: Berry curvature Ω_z derived from retarded Green function structure
+- **[Pivot]**: Analytical formula verified; numerical integration completes the calculation
+---
+
+### [Physics Audit Log] 2026-03-26 13:14:20
+- **[Context]**: Altermagnetic AHC - Symmetry analysis
+- **[Hypothesis]**: σ_xy=0 is protected by C4z symmetry; strain breaks it
+- **[Failure Mode]**: Initial expectation of non-zero AHE in C4-symmetric case was wrong
+- **[Causality]**: C4z: Ω_z(C4 k) = -Ω_z(k) but E_-(C4 k) = E_-(k) ⟹ exact cancellation
+- **[Pivot]**: Introduced anisotropic exchange (Jx≠Jy) to access non-trivial AHE
+---

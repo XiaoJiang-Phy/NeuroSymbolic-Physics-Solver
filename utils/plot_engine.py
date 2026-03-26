@@ -101,5 +101,23 @@ class PlotEngine:
         plt.close(fig)
         return output_path
 
+    def plot_1d_curves(self, x: np.ndarray, y_list: list, labels: list,
+                       xlabel: str, ylabel: str, title: str = "",
+                       output_path: str = "plot.pdf"):
+        """Plots multiple 1D curves."""
+        fig, ax = plt.subplots(figsize=(3.4, 2.8))
+        for y, label in zip(y_list, labels):
+            ax.plot(x, y, lw=1.5, label=label)
+        
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        if title:
+            ax.set_title(title)
+        ax.legend()
+        fig.tight_layout()
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        return output_path
+
 def get_plot_engine() -> PlotEngine:
     return PlotEngine()

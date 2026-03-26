@@ -1,5 +1,6 @@
 import os
 from openai import OpenAI
+import base64
 import json
 from dotenv import load_dotenv
 
@@ -33,7 +34,7 @@ class ReporterAgent:
             "6. LANGUAGE: You MUST write the report in the language specified by the user (e.g., Chinese, English).\n"
         )
 
-    def generate_report(self, problem_definition, tree_log, thinking_process_path, final_solution=None, language="English"):
+    def generate_report(self, problem_definition, tree_log, thinking_process_path, final_solution=None, language="English", image_paths=None):
         if not self.api_key:
             return "Error: DeepSeek API Key not found. Cannot generate report."
 
@@ -56,11 +57,31 @@ class ReporterAgent:
             f"Thinking Process Snippet:\n{thinking_process}\n\n"
             f"REQUIRED LANGUAGE: {language}\n\n"
             f"Based on the above data, write a detailed research report in {language}. Highlight the neurosymbolic collaboration between 'Theorist', 'Coder', and 'Verifier' agents."
+            f" If images are provided, analyze them and incorporate your findings into the report, discussing the physics implications of the visual data."
         )
+
+        user_content = prompt
+        if image_paths:
+            user_content = [{"type": "text", "text": prompt}]
+            for img_path in image_paths:
+                if os.path.exists(img_path):
+                    try:
+                        with open(img_path, "rb") as img_file:
+                            base64_image = base64.b64encode(img_file.read()).decode('utf-8')
+                        # Infer mime type from extension
+                        mime_type = "image/png" if img_path.lower().endswith('.png') else "image/jpeg"
+                        user_content.append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{base64_image}"
+                            }
+                        })
+                    except Exception as e:
+                        print(f"[Reporter] Warning: Could not read image {img_path}. Error: {e}")
 
         messages = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": user_content}
         ]
 
         try:
