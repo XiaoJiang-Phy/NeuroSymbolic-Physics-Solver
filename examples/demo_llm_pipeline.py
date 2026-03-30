@@ -97,6 +97,24 @@ PROBLEMS = {
             "4. Prove that sigma_xy evaluates to a topological invariant proportional to sgn(m)."
         ),
     },
+    "christoffel": {
+        "name": "多体 Bures-Levi-Civita 联络与非线性光学 (Christoffel Connection)",
+        "hamiltonian": (
+            "H = d_x * sigma_x + d_y * sigma_y + d_z * sigma_z; "
+            "d_x = t1*(1+cos(kx)+cos(ky)); d_y = t1*(sin(kx)+sin(ky)); "
+            "d_z = M - 2*t2*sin(phi)*(sin(kx)-sin(ky)-sin(kx-ky))"
+        ),
+        "target": (
+            "Derive the nonadiabatic quantum metric tensor g_uv and the Christoffel symbols Gamma^x_xx and Gamma^y_yy "
+            "for the lower band of the Haldane model analytically to second order in symmetry breaking M."
+        ),
+        "hint": (
+            "1. Use quantum_geometry_engine if available or define g_uv = 1/(4d^2) (partial_u d dot partial_v d - ...). "
+            "2. Derive inverse metric. "
+            "3. Compute Gamma^l_ij using the Levi-Civita derivation (1/2 g^ls (d_i g_js + d_j g_is - d_s g_ij)). "
+            "4. Verify the massive Dirac limit."
+        ),
+    },
 }
 
 
