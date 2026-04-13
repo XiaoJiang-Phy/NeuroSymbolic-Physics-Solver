@@ -8,7 +8,7 @@
 
 A multi-agent, stateful tree-based orchestration system designed to solve complex physics and mathematics problems (integrals, ODEs, etc.) using a combination of **Deep-Reasoning Symbolic Symbolic Intelligence** and **High-Precision Numerical Verification**.
 
-## 🚀 Recent Solution Success
+## Recent Solution Success
 
 The solver recently achieved two major zero-error closed-form derivations:
 
@@ -30,7 +30,7 @@ $$I(a) = \int_{0}^{\infty} \frac{\sin(ax)}{x(x^2+1)} \, dx = \frac{\pi}{2}(1 - e
 - **Precision Validation**: Verified against `mpmath` ground-truth at $a \in \{1, 2, 5\}$ with absolute residuals $< 10^{-15}$.
 - **Automated Reporting**: Generated a complete academic report: [`report_Parametric_Sinusoidal_Decay_Integral.md`](./report_Parametric_Sinusoidal_Decay_Integral.md).
 
-## 🧠 Core Architecture
+## Core Architecture
 
 The system utilizes four specialized agents powered by **DeepSeek-R1 (Reasoning)** and **DeepSeek-V3** to iteratively explore the solution space:
 
@@ -52,14 +52,14 @@ The system utilizes four specialized agents powered by **DeepSeek-R1 (Reasoning)
     *   **Synthesis**: Compiles final research papers or reports in Markdown/LaTeX.
     *   **Post-Mortem**: Analyzes failure logs to document "Dead Ends" and "Turning Points" in the derivation.
 
-## 🛠️ Advanced Features
+## Advanced Features
 
 -   **Best-First Search (BFS)**: Uses a priority queue to explore the most promising mathematical paths first, balancing `success_probability` and `graph_depth`.
 -   **Numerical Oracle**: A 50-100 dps engine capable of handling nested integrals, recursive function calls, and symbolic parameter substitutions.
 -   **State Management**: Persistent `tree_log.json` allows the solver to resume from the last successful checkpoint after crashes or API timeouts.
 -   **Diagnostic Transparency**: All internal "Inner Monologues" (reasoning tokens) from the R1 models are preserved in `thinking_process.txt`.
 
-## ⚙️ Getting Started
+## Getting Started
 
 ### Prerequisites
 - Python 3.10+
@@ -85,5 +85,5 @@ python orchestrator.py
 - `thinking_process.txt`: Integrated reasoning and execution logs.
 - `report_*.md`: Final scientific outputs.
 
-## 📄 License
+## License
 MIT
