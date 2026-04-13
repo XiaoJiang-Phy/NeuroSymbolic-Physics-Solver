@@ -77,7 +77,7 @@ The system utilizes four specialized agents powered by **DeepSeek-R1 (Reasoning)
 python orchestrator.py
 ```
 
-## 📂 Project Structure
+## Project Structure
 - `orchestrator.py`: Root loop and search manager.
 - `agents/`: Core AI instructions and solver logic.
 - `utils/numerical_oracle.py`: High-precision calculus engine.
